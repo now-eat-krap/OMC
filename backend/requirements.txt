@@ -1,0 +1,17 @@
+# FastAPI 백테스팅 백엔드 의존성
+# numpy 버전은 numba 호환을 위해 1.23.x 사용
+
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.5.0
+ccxt>=4.0.0
+pandas>=2.0.0
+numpy>=1.21.0,<1.24.0
+vectorbt>=0.26.0
+python-dotenv>=1.0.0
+redis>=5.0.0  # Redis 캐시용
+apscheduler>=3.10.0  # 스케줄러
+numba>=0.58.0  # JIT 컴파일 최적화
+openai>=1.0.0  # AI 전략 생성용
+slowapi>=0.1.9  # Rate limiting
+celery[redis]>=5.3.0  # 백그라운드 작업 큐

@@ -1,0 +1,4 @@
+# 개발 환경 전용 의존성
+# 설치: pip install -r requirements-dev.txt
+
+ruff>=0.8.0  # Python linter + formatter
