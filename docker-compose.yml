@@ -120,6 +120,9 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro # SSL 인증서 마운트 (읽기 전용)
     depends_on:
       - backend
     networks:
