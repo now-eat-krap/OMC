@@ -54,14 +54,18 @@ services:
       - SENTRY_DSN=${SENTRY_DSN:-}
 
   # ===========================================================================
-  # Frontend - 프로덕션 모드 (SSL 활성화)
+  # Frontend - 프로덕션 모드
+  # ===========================================================================
+  # Cloudflare Tunnel 사용 시: SSL은 Cloudflare Edge에서 처리
+  # 80 포트만 사용, 443 및 인증서 불필요
   # ===========================================================================
   frontend:
     ports:
       - "80:80"
-      - "443:443"
-    volumes:
-      - ./certs:/etc/nginx/certs:ro # SSL 인증서 마운트 (읽기 전용)
+    # SSL 인증서는 Cloudflare Tunnel 사용 시 불필요
+    # 직접 SSL 연결이 필요한 경우 아래 주석 해제
+    # volumes:
+    #   - ./certs:/etc/nginx/certs:ro
 
   # ===========================================================================
   # 모니터링 스택
@@ -156,6 +160,30 @@ services:
       - "3001:3001"
     volumes:
       - uptime_kuma_data:/app/data
+    networks:
+      - backtesting-network
+
+  # ---------------------------------------------------------------------------
+  # Cloudflare Tunnel - 외부 접속을 위한 보안 터널
+  # ---------------------------------------------------------------------------
+  # Cloudflare Zero Trust 터널을 통해 서버를 안전하게 노출
+  # - 포트 포워딩 불필요 (공유기 설정 안 건드려도 됨)
+  # - SSL 자동 처리 (Cloudflare Edge에서 HTTPS 종료)
+  # - DDoS 보호 및 WAF 기능 포함
+  #
+  # 설정 방법:
+  #   1. Cloudflare Zero Trust 대시보드에서 터널 생성
+  #   2. 터널 토큰을 .env 파일의 CLOUDFLARE_TUNNEL_TOKEN에 설정
+  #   3. Public Hostname에서 Service를 http://frontend:80으로 설정
+  # ---------------------------------------------------------------------------
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: backtesting-cloudflared
+    restart: unless-stopped
+    # 터널 토큰으로 Cloudflare에 연결 (토큰은 .env에서 관리)
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - frontend
     networks:
       - backtesting-network
 
