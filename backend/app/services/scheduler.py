@@ -127,7 +127,8 @@ async def initialize_cache_if_empty():
     loop = asyncio.get_event_loop()
 
     for coin in TOP_COIN_SYMBOLS:
-        start_date = TOP_COINS.get(coin, "2000-01-01")
+        coin_info = TOP_COINS.get(coin, ("2000-01-01", 4, 2))
+        start_date = coin_info[0]  # 튜플의 첫 번째 요소 (시작일)
 
         for tf in SUPPORTED_TIMEFRAMES:
             try:
