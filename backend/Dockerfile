@@ -3,8 +3,8 @@
 # FastAPI + VectorBT 백테스트 API 서버
 # =============================================================================
 
-# Python 3.11 슬림 이미지 (NumPy/VectorBT 호환)
-FROM python:3.11-slim
+# Python 3.10 슬림 이미지 (numba/VectorBT 호환)
+FROM python:3.10-slim
 
 # 작업 디렉토리 설정
 WORKDIR /app
