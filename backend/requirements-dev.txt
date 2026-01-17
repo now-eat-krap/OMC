@@ -2,3 +2,5 @@
 # 설치: pip install -r requirements-dev.txt
 
 ruff>=0.8.0  # Python linter + formatter
+pytest>=8.0.0  # Unit testing framework
+pytest-asyncio>=0.24.0  # FastAPI 비동기 테스트용

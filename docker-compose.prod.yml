@@ -1,0 +1,166 @@
+# =============================================================================
+# Docker Compose 프로덕션 환경 설정 (오버라이드)
+# =============================================================================
+#
+# 사용법:
+#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 프로덕션 환경 특징:
+#   - 소스 코드 마운트 없음 (이미지 내 코드 사용)
+#   - Sentry 에러 추적 연동
+#   - 모니터링 스택 (Prometheus, Grafana, cAdvisor, Uptime Kuma)
+#
+# =============================================================================
+
+version: "3.8"
+
+services:
+  # ===========================================================================
+  # Redis - 프로덕션 모드 (비밀번호 인증 + 외부 접근 차단)
+  # ===========================================================================
+  redis:
+    # 외부 포트 노출 제거 (내부 네트워크에서만 접근 가능)
+    ports: []
+    command: >
+      redis-server 
+      --appendonly yes                       
+      --maxmemory 512mb                      
+      --maxmemory-policy allkeys-lru
+      --requirepass ${REDIS_PASSWORD:-changeme}
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ===========================================================================
+  # Backend - 프로덕션 모드
+  # ===========================================================================
+  backend:
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - SENTRY_DSN=${SENTRY_DSN:-}
+    # 프로덕션에서는 워커 수 조정 (N100 기준 1-2개)
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
+
+  # ===========================================================================
+  # Celery Worker - 프로덕션 모드
+  # ===========================================================================
+  celery-worker:
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - SENTRY_DSN=${SENTRY_DSN:-}
+
+  # ===========================================================================
+  # 모니터링 스택
+  # ===========================================================================
+
+  # ---------------------------------------------------------------------------
+  # Prometheus - 메트릭 수집 서버
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: backtesting-prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    networks:
+      - backtesting-network
+
+  # ---------------------------------------------------------------------------
+  # Grafana - 대시보드 시각화
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:latest
+    container_name: backtesting-grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GF_SECURITY_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GF_SECURITY_ADMIN_PASSWORD:-admin123}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - backtesting-network
+
+  # ---------------------------------------------------------------------------
+  # cAdvisor - 컨테이너 리소스 모니터링 (내부 전용)
+  # ---------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: backtesting-cadvisor
+    restart: unless-stopped
+    # 외부 포트 노출 제거 - Prometheus가 내부 네트워크로 접근
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - backtesting-network
+
+  # ---------------------------------------------------------------------------
+  # Redis Exporter - Redis 메트릭 수집 (내부 전용)
+  # ---------------------------------------------------------------------------
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: backtesting-redis-exporter
+    restart: unless-stopped
+    # 외부 포트 노출 제거 - Prometheus가 내부 네트워크로 접근
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-changeme}
+    depends_on:
+      - redis
+    networks:
+      - backtesting-network
+
+  # ---------------------------------------------------------------------------
+  # Uptime Kuma - 서비스 상태 모니터링 및 알림
+  # ---------------------------------------------------------------------------
+  uptime-kuma:
+    image: louislam/uptime-kuma:latest
+    container_name: backtesting-uptime-kuma
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - backtesting-network
+
+# =============================================================================
+# 볼륨 정의 (프로덕션 전용)
+# =============================================================================
+volumes:
+  prometheus_data:
+    driver: local
+    name: backtesting-prometheus-data
+
+  grafana_data:
+    driver: local
+    name: backtesting-grafana-data
+
+  uptime_kuma_data:
+    driver: local
+    name: backtesting-uptime-kuma-data

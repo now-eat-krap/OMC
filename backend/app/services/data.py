@@ -215,7 +215,7 @@ class DataService:
             )
 
             if cached_candles and len(cached_candles) > 0:
-                logger.info(f"캐시 히트: {symbol} {timeframe} ({len(cached_candles)}개)")
+                logger.debug(f"캐시 히트: {symbol} {timeframe} ({len(cached_candles)}개)")
 
                 df = pd.DataFrame(cached_candles)
                 df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms")
@@ -223,7 +223,7 @@ class DataService:
                 return df
 
         # 2. 캐시 미스 시 Binance API 호출
-        logger.info(f"캐시 미스, API 호출: {symbol} {timeframe}")
+        logger.debug(f"캐시 미스, API 호출: {symbol} {timeframe}")
 
         try:
             since = None
