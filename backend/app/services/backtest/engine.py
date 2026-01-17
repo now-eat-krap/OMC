@@ -138,7 +138,7 @@ class BacktestEngine:
             )
 
             profiling["total"] = time.perf_counter() - total_start
-            logger.info(f"[PROFILING - No Trades] {profiling}")
+            logger.debug(f"[PROFILING - No Trades] {profiling}")
 
             return BacktestResult(
                 totalReturn=0,
@@ -254,7 +254,7 @@ class BacktestEngine:
             expected_qty = request.initialCapital / first_entry_price
             expected_floored = np.floor(expected_qty * precision_mult) / precision_mult
 
-            logger.info(f"""
+            logger.debug(f"""
 ========== ORDER DEBUG (from_order_func) ==========
 초기 자본금: {request.initialCapital}
 첫 진입 가격: {first_entry_price}
@@ -290,7 +290,7 @@ VectorBT 실제 수량: {first_order["Size"]}
         try:
             # VectorBT 기본 샤프 비율 사용
             sharpe_ratio = safe_float(portfolio.sharpe_ratio())
-            logger.info(f"VectorBT Sharpe Ratio: {sharpe_ratio}")
+            logger.debug(f"VectorBT Sharpe Ratio: {sharpe_ratio}")
         except (ValueError, TypeError) as e:
             logger.error(f"샤프 비율 계산 오류: {e}")
             sharpe_ratio = None
@@ -349,7 +349,7 @@ VectorBT 실제 수량: {first_order["Size"]}
         profiling["total"] = time.perf_counter() - total_start
 
         # 프로파일링 로깅
-        logger.info(f"""
+        logger.debug(f"""
 ========== BACKTEST PROFILING REPORT ==========
 Symbol: {request.symbol}, Timeframe: {request.timeframe}
 Data rows (with warmup): {profiling.get("data_rows", 0)}

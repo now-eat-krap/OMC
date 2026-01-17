@@ -165,7 +165,7 @@ class CandleCache:
         try:
             cache_key = self._get_cache_key(symbol, timeframe)
             self._redis.set(cache_key, json.dumps(candles))
-            logger.info(f"캐시 저장: {symbol} {timeframe} ({len(candles)}개)")
+            logger.debug(f"캐시 저장: {symbol} {timeframe} ({len(candles)}개)")
             return True
         except Exception as e:
             logger.error(f"캐시 저장 실패: {e}")
