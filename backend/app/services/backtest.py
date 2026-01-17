@@ -171,7 +171,7 @@ class BacktestService:
             profiling["indicators_extract"] = time.perf_counter() - step_start
 
             profiling["total"] = time.perf_counter() - total_start
-            logger.info(f"[PROFILING - No Trades] {profiling}")
+            logger.debug(f"[PROFILING - No Trades] {profiling}")
 
             return BacktestResult(
                 totalReturn=0,
@@ -366,10 +366,10 @@ class BacktestService:
         profiling["total"] = time.perf_counter() - total_start
 
         # 프로파일링 결과 로깅
-        logger.info(f"[PROFILING] {profiling}")
+        logger.debug(f"[PROFILING] {profiling}")
 
         # 각 단계별 시간 상세 로깅
-        logger.info(f"""
+        logger.debug(f"""
 ========== BACKTEST PROFILING REPORT ==========
 Symbol: {request.symbol}, Timeframe: {request.timeframe}
 Data rows (with warmup): {profiling.get("data_rows", 0)}

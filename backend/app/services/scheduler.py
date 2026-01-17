@@ -53,15 +53,19 @@ def fetch_candles_sync(
         # 해당 주의 월요일로 조정 (Binance 주봉은 월요일 시작)
         days_since_monday = start_dt.weekday()  # 월=0, 화=1, ...
         start_dt = start_dt - timedelta(days=days_since_monday)
-        logger.info(f"[{symbol}] 주봉 시작일 조정: {start_date} -> {start_dt.strftime('%Y-%m-%d')}")
+        logger.debug(
+            f"[{symbol}] 주봉 시작일 조정: {start_date} -> {start_dt.strftime('%Y-%m-%d')}"
+        )
     elif timeframe == "1M":
         # 해당 월의 1일로 조정
         start_dt = start_dt.replace(day=1)
-        logger.info(f"[{symbol}] 월봉 시작일 조정: {start_date} -> {start_dt.strftime('%Y-%m-%d')}")
+        logger.debug(
+            f"[{symbol}] 월봉 시작일 조정: {start_date} -> {start_dt.strftime('%Y-%m-%d')}"
+        )
 
     since = int(start_dt.timestamp() * 1000)
 
-    logger.info(f"[{symbol}] {timeframe} 수집 시작 ({start_date}~)")
+    logger.debug(f"[{symbol}] {timeframe} 수집 시작 ({start_date}~)")
 
     while True:
         try:
@@ -96,7 +100,7 @@ def fetch_candles_sync(
             logger.error(f"[{symbol}] {timeframe} 오류: {e}")
             break
 
-    logger.info(f"[{symbol}] {timeframe} {len(all_candles)}개 캔들 수집 완료")
+    logger.debug(f"[{symbol}] {timeframe} {len(all_candles)}개 캔들 수집 완료")
     return all_candles
 
 
@@ -113,11 +117,11 @@ async def initialize_cache_if_empty():
         logger.info(f"캐시에 데이터 존재 ({len(test_candles)}개). 초기화 건너뜀.")
         return
 
-    logger.info("=" * 50)
+    logger.debug("=" * 50)
     logger.info("캐시 비어있음. 초기화 시작...")
     logger.info(f"대상 코인: {len(TOP_COIN_SYMBOLS)}개")
     logger.info(f"타임프레임: {SUPPORTED_TIMEFRAMES}")
-    logger.info("=" * 50)
+    logger.debug("=" * 50)
 
     # 백그라운드에서 동기 함수 실행
     loop = asyncio.get_event_loop()
@@ -139,9 +143,9 @@ async def initialize_cache_if_empty():
     yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     candle_cache.set_last_update(yesterday)
 
-    logger.info("=" * 50)
+    logger.debug("=" * 50)
     logger.info("캐시 초기화 완료!")
-    logger.info("=" * 50)
+    logger.debug("=" * 50)
 
 
 async def update_cache_daily():
