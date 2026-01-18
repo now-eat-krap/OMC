@@ -16,22 +16,13 @@ version: "3.8"
 
 services:
   # ===========================================================================
-  # Redis - 프로덕션 모드 (비밀번호 인증 + 외부 접근 차단)
+  # Redis - 프로덕션 모드 (외부 접근 차단)
+  # ===========================================================================
+  # 비밀번호 인증은 base 파일(docker-compose.yml)에서 이미 설정됨
   # ===========================================================================
   redis:
     # 외부 포트 노출 제거 (내부 네트워크에서만 접근 가능)
-    ports: []
-    command: >
-      redis-server 
-      --appendonly yes                       
-      --maxmemory 512mb                      
-      --maxmemory-policy allkeys-lru
-      --requirepass ${REDIS_PASSWORD:-changeme}
-    healthcheck:
-      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-changeme}", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    ports: !reset []
 
   # ===========================================================================
   # Backend - 프로덕션 모드
@@ -57,15 +48,13 @@ services:
   # Frontend - 프로덕션 모드
   # ===========================================================================
   # Cloudflare Tunnel 사용 시: SSL은 Cloudflare Edge에서 처리
-  # 80 포트만 사용, 443 및 인증서 불필요
+  # 80 포트는 base 파일에서 이미 설정됨
+  # SSL 인증서는 Cloudflare Tunnel 사용 시 불필요
+  # 직접 SSL 연결이 필요한 경우 아래 주석 해제하여 인증서 마운트
   # ===========================================================================
-  frontend:
-    ports:
-      - "80:80"
-    # SSL 인증서는 Cloudflare Tunnel 사용 시 불필요
-    # 직접 SSL 연결이 필요한 경우 아래 주석 해제
-    # volumes:
-    #   - ./certs:/etc/nginx/certs:ro
+  # frontend:
+  #   volumes:
+  #     - ./certs:/etc/nginx/certs:ro
 
   # ===========================================================================
   # 모니터링 스택
