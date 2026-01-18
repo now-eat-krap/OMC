@@ -12,7 +12,7 @@ import ccxt
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 
-from app.config import SUPPORTED_TIMEFRAMES, TOP_COIN_SYMBOLS, TOP_COINS
+from app.config import SUPPORTED_TIMEFRAMES, TOP_COIN_SYMBOLS, get_coin_start_date
 from app.services.cache import candle_cache
 
 # 로깅 설정 (콘솔 출력)
@@ -127,7 +127,7 @@ async def initialize_cache_if_empty():
     loop = asyncio.get_event_loop()
 
     for coin in TOP_COIN_SYMBOLS:
-        start_date = TOP_COINS.get(coin, "2000-01-01")
+        start_date = get_coin_start_date(coin)
 
         for tf in SUPPORTED_TIMEFRAMES:
             try:
