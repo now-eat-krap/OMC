@@ -193,12 +193,34 @@ class ResultAnalyzer:
                 key = f"{condition.indicator}_{condition.indicatorPeriod}"
                 if key not in seen:
                     seen.add(key)
+
+                    # RSI의 경우 과매수/과매도 값 추출
+                    rsi_overbought = None
+                    rsi_oversold = None
+                    if condition.indicator == "RSI":
+                        # 동일한 RSI 지표를 사용하는 모든 조건에서 값 수집
+                        for c in conditions:
+                            if (
+                                c.indicator == "RSI"
+                                and c.indicatorPeriod == condition.indicatorPeriod
+                                and c.value is not None
+                            ):
+                                # 비교 연산자로 과매수/과매도 구분
+                                if c.comparison in ["gt", "gte"]:
+                                    # RSI가 X보다 크면 → 과매수 레벨
+                                    rsi_overbought = int(c.value)
+                                elif c.comparison in ["lt", "lte"]:
+                                    # RSI가 X보다 작으면 → 과매도 레벨
+                                    rsi_oversold = int(c.value)
+
                     ind_data = self._get_indicator_data(
                         df,
                         condition.indicator,
                         condition.indicatorPeriod,
                         timestamps,
                         valid_indices,
+                        rsi_overbought=rsi_overbought,
+                        rsi_oversold=rsi_oversold,
                     )
                     if ind_data:
                         indicator_list.append(ind_data)
@@ -328,6 +350,8 @@ class ResultAnalyzer:
         period: int,
         timestamps: list[int],
         valid_indices: list[int],
+        rsi_overbought: int | None = None,
+        rsi_oversold: int | None = None,
     ) -> IndicatorData | None:
         """단일 지표 데이터 생성
 
@@ -337,6 +361,8 @@ class ResultAnalyzer:
             period: 기간
             timestamps: 타임스탬프 리스트
             valid_indices: 유효한 인덱스 리스트
+            rsi_overbought: RSI 과매수선 (예: 70, 80)
+            rsi_oversold: RSI 과매도선 (예: 30, 20)
 
         Returns:
             IndicatorData 또는 None
@@ -369,4 +395,7 @@ class ResultAnalyzer:
                 IndicatorDataPoint(timestamp=int(ts), value=float(v) if not pd.isna(v) else 0)
                 for ts, v in zip(timestamps, filtered_values)
             ],
+            # RSI 전용 필드 (과매수/과매도 레벨)
+            rsiOverbought=rsi_overbought if ind_type == "rsi" else None,
+            rsiOversold=rsi_oversold if ind_type == "rsi" else None,
         )

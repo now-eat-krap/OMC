@@ -470,32 +470,35 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
 
           rsiSeries.setData(rsiData)
 
-          // 과매수/과매도 라인 (70/30)
+          // 과매수/과매도 라인 (동적 값 사용, 기본값 70/30)
+          const overboughtLevel = indicator.rsiOverbought ?? 70
+          const oversoldLevel = indicator.rsiOversold ?? 30
+
           const overBought = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(239, 68, 68, 0.5)',
-              lineWidth: 1,
-              lineStyle: 2,
+              color: 'rgba(255, 255, 255, 0.5)',
+              lineWidth: 2,
+              lineStyle: 0,
               priceLineVisible: false,
               lastValueVisible: false,
             },
             1
           )
-          overBought.setData(rsiData.map((d) => ({ ...d, value: 70 })))
+          overBought.setData(rsiData.map((d) => ({ ...d, value: overboughtLevel })))
 
           const overSold = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(34, 197, 94, 0.5)',
-              lineWidth: 1,
-              lineStyle: 2,
+              color: 'rgba(255, 255, 255, 0.5)',
+              lineWidth: 2,
+              lineStyle: 0,
               priceLineVisible: false,
               lastValueVisible: false,
             },
             1
           )
-          overSold.setData(rsiData.map((d) => ({ ...d, value: 30 })))
+          overSold.setData(rsiData.map((d) => ({ ...d, value: oversoldLevel })))
         }
 
         // MACD - Pane 1
