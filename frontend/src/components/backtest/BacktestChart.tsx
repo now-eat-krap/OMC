@@ -439,11 +439,13 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           lineSeries.setData(lineData)
         }
 
+        // 볼린저밴드 (TradingView 스타일)
         if (indicator.type === 'bb' && indicator.upperBand && indicator.lowerBand) {
+          // 중간선 (SMA) - 파란색
           const middleSeries = chart.addSeries(
             LineSeries,
             {
-              color: INDICATOR_COLORS.bb,
+              color: '#2196F3',
               lineWidth: 1,
               priceLineVisible: false,
               lastValueVisible: false,
@@ -457,12 +459,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
               .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 상단 밴드 - 빨간색
           const upperSeries = chart.addSeries(
             LineSeries,
             {
-              color: `${INDICATOR_COLORS.bb}80`,
+              color: '#EF5350',
               lineWidth: 1,
-              lineStyle: 2,
               priceLineVisible: false,
               lastValueVisible: false,
             },
@@ -474,12 +476,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
               .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 하단 밴드 - 초록색
           const lowerSeries = chart.addSeries(
             LineSeries,
             {
-              color: `${INDICATOR_COLORS.bb}80`,
+              color: '#26A69A',
               lineWidth: 1,
-              lineStyle: 2,
               priceLineVisible: false,
               lastValueVisible: false,
             },
