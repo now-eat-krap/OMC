@@ -255,22 +255,19 @@ class ResultAnalyzer:
                             type="macd",
                             period=12,
                             data=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, macd_vals)
+                                if not pd.isna(v)
                             ],
                             signalLine=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, signal_vals)
+                                if not pd.isna(v)
                             ],
                             histogram=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, hist_vals)
+                                if not pd.isna(v)
                             ],
                         )
                     )
@@ -392,8 +389,9 @@ class ResultAnalyzer:
             type=ind_type,
             period=period,
             data=[
-                IndicatorDataPoint(timestamp=int(ts), value=float(v) if not pd.isna(v) else 0)
+                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                 for ts, v in zip(timestamps, filtered_values)
+                if not pd.isna(v)
             ],
             # RSI 전용 필드 (과매수/과매도 레벨)
             rsiOverbought=rsi_overbought if ind_type == "rsi" else None,
