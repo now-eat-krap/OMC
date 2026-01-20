@@ -158,11 +158,66 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
       const maps = new Map<string, Map<number, number>>()
 
       indicators.forEach((ind) => {
+        // 기본 데이터 맵
         const dataMap = new Map<number, number>()
         ind.data.forEach((d) => {
           dataMap.set(Math.floor(d.timestamp / 1000), d.value)
         })
         maps.set(ind.name, dataMap)
+
+        // MACD 시그널선 맵
+        if (ind.type === 'macd' && ind.signalLine) {
+          const signalMap = new Map<number, number>()
+          ind.signalLine.forEach((d) => {
+            signalMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Signal`, signalMap)
+        }
+
+        // MACD 히스토그램 맵
+        if (ind.type === 'macd' && ind.histogram) {
+          const histMap = new Map<number, number>()
+          ind.histogram.forEach((d) => {
+            histMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Histogram`, histMap)
+        }
+
+        // 스토캐스틱 %K 맵
+        if (ind.type === 'stoch' && ind.kLine) {
+          const kMap = new Map<number, number>()
+          ind.kLine.forEach((d) => {
+            kMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_%K`, kMap)
+        }
+
+        // 스토캐스틱 %D 맵
+        if (ind.type === 'stoch' && ind.dLine) {
+          const dMap = new Map<number, number>()
+          ind.dLine.forEach((d) => {
+            dMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_%D`, dMap)
+        }
+
+        // 볼린저밴드 상단 맵
+        if (ind.type === 'bb' && ind.upperBand) {
+          const upperMap = new Map<number, number>()
+          ind.upperBand.forEach((d) => {
+            upperMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Upper`, upperMap)
+        }
+
+        // 볼린저밴드 하단 맵
+        if (ind.type === 'bb' && ind.lowerBand) {
+          const lowerMap = new Map<number, number>()
+          ind.lowerBand.forEach((d) => {
+            lowerMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Lower`, lowerMap)
+        }
       })
 
       return maps
@@ -218,12 +273,100 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           const dataMap = indicatorMaps.get(ind.name)
           if (dataMap) {
             const value = dataMap.get(time)
-            if (value !== undefined && value > 0) {
+            // MACD, RSI 등 음수/양수 모두 표시 (value > 0 조건 제거)
+            if (value !== undefined && !Number.isNaN(value)) {
+              // 볼린저밴드 중단선은 파란색으로 명시
+              const displayColor =
+                ind.type === 'bb' ? '#2196F3' : ind.type === 'macd' ? '#2962FF' : color
+              const displayName = ind.type === 'bb' ? 'Basis' : ind.name
               indicatorValues.push({
-                name: ind.name,
+                name: displayName,
                 value,
-                color,
+                color: displayColor,
               })
+            }
+          }
+
+          // MACD 시그널선과 히스토그램 추가
+          if (ind.type === 'macd') {
+            const signalMap = indicatorMaps.get(`${ind.name}_Signal`)
+            if (signalMap) {
+              const signalValue = signalMap.get(time)
+              if (signalValue !== undefined && !Number.isNaN(signalValue)) {
+                indicatorValues.push({
+                  name: 'Signal',
+                  value: signalValue,
+                  color: '#FF6D00', // 시그널선 주황색
+                })
+              }
+            }
+
+            const histMap = indicatorMaps.get(`${ind.name}_Histogram`)
+            if (histMap) {
+              const histValue = histMap.get(time)
+              if (histValue !== undefined && !Number.isNaN(histValue)) {
+                indicatorValues.push({
+                  name: 'Histogram',
+                  value: histValue,
+                  color: histValue >= 0 ? '#26A69A' : '#EF5350', // 양수 초록, 음수 빨강
+                })
+              }
+            }
+          }
+
+          // 스토캐스틱 %K, %D 추가
+          if (ind.type === 'stoch') {
+            const kMap = indicatorMaps.get(`${ind.name}_%K`)
+            if (kMap) {
+              const kValue = kMap.get(time)
+              if (kValue !== undefined && !Number.isNaN(kValue)) {
+                indicatorValues.push({
+                  name: '%K',
+                  value: kValue,
+                  color: '#2962FF', // %K 파란색
+                })
+              }
+            }
+
+            const dMap = indicatorMaps.get(`${ind.name}_%D`)
+            if (dMap) {
+              const dValue = dMap.get(time)
+              if (dValue !== undefined && !Number.isNaN(dValue)) {
+                indicatorValues.push({
+                  name: '%D',
+                  value: dValue,
+                  color: '#FF6D00', // %D 주황색
+                })
+              }
+            }
+          }
+
+          // 볼린저밴드 상단/하단 추가
+          if (ind.type === 'bb') {
+            // 상단 밴드 - 빨간색
+            const upperMap = indicatorMaps.get(`${ind.name}_Upper`)
+            if (upperMap) {
+              const upperValue = upperMap.get(time)
+              if (upperValue !== undefined && !Number.isNaN(upperValue)) {
+                indicatorValues.push({
+                  name: 'Upper',
+                  value: upperValue,
+                  color: '#EF5350',
+                })
+              }
+            }
+
+            // 하단 밴드 - 초록색
+            const lowerMap = indicatorMaps.get(`${ind.name}_Lower`)
+            if (lowerMap) {
+              const lowerValue = lowerMap.get(time)
+              if (lowerValue !== undefined && !Number.isNaN(lowerValue)) {
+                indicatorValues.push({
+                  name: 'Lower',
+                  value: lowerValue,
+                  color: '#26A69A',
+                })
+              }
             }
           }
         })
@@ -392,11 +535,13 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           lineSeries.setData(lineData)
         }
 
+        // 볼린저밴드 (TradingView 스타일)
         if (indicator.type === 'bb' && indicator.upperBand && indicator.lowerBand) {
+          // 중간선 (SMA) - 파란색
           const middleSeries = chart.addSeries(
             LineSeries,
             {
-              color: INDICATOR_COLORS.bb,
+              color: '#2196F3',
               lineWidth: 1,
               priceLineVisible: false,
               lastValueVisible: false,
@@ -410,12 +555,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
               .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 상단 밴드 - 빨간색
           const upperSeries = chart.addSeries(
             LineSeries,
             {
-              color: `${INDICATOR_COLORS.bb}80`,
+              color: '#EF5350',
               lineWidth: 1,
-              lineStyle: 2,
               priceLineVisible: false,
               lastValueVisible: false,
             },
@@ -427,12 +572,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
               .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 하단 밴드 - 초록색
           const lowerSeries = chart.addSeries(
             LineSeries,
             {
-              color: `${INDICATOR_COLORS.bb}80`,
+              color: '#26A69A',
               lineWidth: 1,
-              lineStyle: 2,
               priceLineVisible: false,
               lastValueVisible: false,
             },
@@ -470,40 +615,44 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
 
           rsiSeries.setData(rsiData)
 
-          // 과매수/과매도 라인 (70/30)
+          // 과매수/과매도 라인 (동적 값 사용, 기본값 70/30)
+          const overboughtLevel = indicator.rsiOverbought ?? 70
+          const oversoldLevel = indicator.rsiOversold ?? 30
+
           const overBought = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(239, 68, 68, 0.5)',
-              lineWidth: 1,
-              lineStyle: 2,
+              color: 'rgba(255, 255, 255, 0.5)',
+              lineWidth: 2,
+              lineStyle: 0,
               priceLineVisible: false,
               lastValueVisible: false,
             },
             1
           )
-          overBought.setData(rsiData.map((d) => ({ ...d, value: 70 })))
+          overBought.setData(rsiData.map((d) => ({ ...d, value: overboughtLevel })))
 
           const overSold = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(34, 197, 94, 0.5)',
-              lineWidth: 1,
-              lineStyle: 2,
+              color: 'rgba(255, 255, 255, 0.5)',
+              lineWidth: 2,
+              lineStyle: 0,
               priceLineVisible: false,
               lastValueVisible: false,
             },
             1
           )
-          overSold.setData(rsiData.map((d) => ({ ...d, value: 30 })))
+          overSold.setData(rsiData.map((d) => ({ ...d, value: oversoldLevel })))
         }
 
-        // MACD - Pane 1
+        // MACD - Pane 1 (TradingView 스타일)
         if (indicator.type === 'macd' && indicator.signalLine && indicator.histogram) {
+          // MACD선 (파란색)
           const macdLine = chart.addSeries(
             LineSeries,
             {
-              color,
+              color: '#2962FF',
               lineWidth: 2,
               priceLineVisible: false,
               lastValueVisible: true,
@@ -515,11 +664,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             indicator.data.map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 시그널선 (주황색)
           const signalLine = chart.addSeries(
             LineSeries,
             {
-              color: '#f59e0b',
-              lineWidth: 1,
+              color: '#FF6D00',
+              lineWidth: 2,
               priceLineVisible: false,
               lastValueVisible: false,
             },
@@ -529,6 +679,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             indicator.signalLine.map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
           )
 
+          // 히스토그램 (4색: 양수상승/하락, 음수상승/하락)
           const histogram = chart.addSeries(
             HistogramSeries,
             {
@@ -537,11 +688,29 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             },
             1
           )
-          const histData: HistogramData[] = indicator.histogram.map((d) => ({
-            time: toChartTime(d.timestamp),
-            value: d.value,
-            color: d.value >= 0 ? 'rgba(34, 197, 94, 0.6)' : 'rgba(239, 68, 68, 0.6)',
-          }))
+
+          // TradingView 스타일 히스토그램 색상
+          const histogramData = indicator.histogram
+          const histData: HistogramData[] = histogramData.map((d, index) => {
+            const currentValue = d.value
+            const prevValue = index > 0 ? histogramData[index - 1].value : 0
+            const isRising = currentValue >= prevValue
+
+            let barColor: string
+            if (currentValue >= 0) {
+              // 양수: 상승=진한 초록, 하락=연한 초록
+              barColor = isRising ? '#26A69A' : '#B2DFDB'
+            } else {
+              // 음수: 하락=진한 빨강, 상승=연한 빨강
+              barColor = isRising ? '#FFCDD2' : '#EF5350'
+            }
+
+            return {
+              time: toChartTime(d.timestamp),
+              value: currentValue,
+              color: barColor,
+            }
+          })
           histogram.setData(histData)
         }
 

@@ -97,6 +97,9 @@ export interface IndicatorData {
   histogram?: IndicatorDataPoint[]
   kLine?: IndicatorDataPoint[]
   dLine?: IndicatorDataPoint[]
+  // RSI 전용 (과매수/과매도 레벨)
+  rsiOverbought?: number // 과매수선 (기본 70)
+  rsiOversold?: number // 과매도선 (기본 30)
 }
 
 // 백테스팅 결과 타입
