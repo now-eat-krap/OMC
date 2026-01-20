@@ -276,7 +276,8 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             // MACD, RSI 등 음수/양수 모두 표시 (value > 0 조건 제거)
             if (value !== undefined && !Number.isNaN(value)) {
               // 볼린저밴드 중단선은 파란색으로 명시
-              const displayColor = ind.type === 'bb' ? '#2196F3' : color
+              const displayColor =
+                ind.type === 'bb' ? '#2196F3' : ind.type === 'macd' ? '#2962FF' : color
               const displayName = ind.type === 'bb' ? 'Basis' : ind.name
               indicatorValues.push({
                 name: displayName,
