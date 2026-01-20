@@ -219,7 +219,7 @@ def stochastic(
     low: pd.Series,
     close: pd.Series,
     period: int = 14,
-    smooth_k: int = 3,
+    smooth_k: int = 1,
     smooth_d: int = 3,
 ) -> tuple[pd.Series, pd.Series]:
     """스토캐스틱 오실레이터
@@ -229,7 +229,7 @@ def stochastic(
         low: 저가 시리즈
         close: 종가 시리즈
         period: 기간 (기본 14)
-        smooth_k: %K 스무딩 기간 (기본 3)
+        smooth_k: %K 스무딩 기간 (기본 1)
         smooth_d: %D 스무딩 기간 (기본 3)
 
     Returns:

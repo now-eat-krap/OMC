@@ -288,16 +288,14 @@ class ResultAnalyzer:
                             period=period,
                             data=[],
                             kLine=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, k_vals)
+                                if not pd.isna(v)
                             ],
                             dLine=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, d_vals)
+                                if not pd.isna(v)
                             ],
                         )
                     )
@@ -318,22 +316,19 @@ class ResultAnalyzer:
                             type="bb",
                             period=period,
                             data=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, middle_vals)
+                                if not pd.isna(v)
                             ],
                             upperBand=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, upper_vals)
+                                if not pd.isna(v)
                             ],
                             lowerBand=[
-                                IndicatorDataPoint(
-                                    timestamp=int(ts), value=float(v) if not pd.isna(v) else 0
-                                )
+                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
                                 for ts, v in zip(timestamps, lower_vals)
+                                if not pd.isna(v)
                             ],
                         )
                     )

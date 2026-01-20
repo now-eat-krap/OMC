@@ -182,6 +182,42 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           })
           maps.set(`${ind.name}_Histogram`, histMap)
         }
+
+        // 스토캐스틱 %K 맵
+        if (ind.type === 'stoch' && ind.kLine) {
+          const kMap = new Map<number, number>()
+          ind.kLine.forEach((d) => {
+            kMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_%K`, kMap)
+        }
+
+        // 스토캐스틱 %D 맵
+        if (ind.type === 'stoch' && ind.dLine) {
+          const dMap = new Map<number, number>()
+          ind.dLine.forEach((d) => {
+            dMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_%D`, dMap)
+        }
+
+        // 볼린저밴드 상단 맵
+        if (ind.type === 'bb' && ind.upperBand) {
+          const upperMap = new Map<number, number>()
+          ind.upperBand.forEach((d) => {
+            upperMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Upper`, upperMap)
+        }
+
+        // 볼린저밴드 하단 맵
+        if (ind.type === 'bb' && ind.lowerBand) {
+          const lowerMap = new Map<number, number>()
+          ind.lowerBand.forEach((d) => {
+            lowerMap.set(Math.floor(d.timestamp / 1000), d.value)
+          })
+          maps.set(`${ind.name}_Lower`, lowerMap)
+        }
       })
 
       return maps
@@ -239,10 +275,13 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             const value = dataMap.get(time)
             // MACD, RSI 등 음수/양수 모두 표시 (value > 0 조건 제거)
             if (value !== undefined && !Number.isNaN(value)) {
+              // 볼린저밴드 중단선은 파란색으로 명시
+              const displayColor = ind.type === 'bb' ? '#2196F3' : color
+              const displayName = ind.type === 'bb' ? 'Basis' : ind.name
               indicatorValues.push({
-                name: ind.name,
+                name: displayName,
                 value,
-                color,
+                color: displayColor,
               })
             }
           }
@@ -269,6 +308,62 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
                   name: 'Histogram',
                   value: histValue,
                   color: histValue >= 0 ? '#26A69A' : '#EF5350', // 양수 초록, 음수 빨강
+                })
+              }
+            }
+          }
+
+          // 스토캐스틱 %K, %D 추가
+          if (ind.type === 'stoch') {
+            const kMap = indicatorMaps.get(`${ind.name}_%K`)
+            if (kMap) {
+              const kValue = kMap.get(time)
+              if (kValue !== undefined && !Number.isNaN(kValue)) {
+                indicatorValues.push({
+                  name: '%K',
+                  value: kValue,
+                  color: '#2962FF', // %K 파란색
+                })
+              }
+            }
+
+            const dMap = indicatorMaps.get(`${ind.name}_%D`)
+            if (dMap) {
+              const dValue = dMap.get(time)
+              if (dValue !== undefined && !Number.isNaN(dValue)) {
+                indicatorValues.push({
+                  name: '%D',
+                  value: dValue,
+                  color: '#FF6D00', // %D 주황색
+                })
+              }
+            }
+          }
+
+          // 볼린저밴드 상단/하단 추가
+          if (ind.type === 'bb') {
+            // 상단 밴드 - 빨간색
+            const upperMap = indicatorMaps.get(`${ind.name}_Upper`)
+            if (upperMap) {
+              const upperValue = upperMap.get(time)
+              if (upperValue !== undefined && !Number.isNaN(upperValue)) {
+                indicatorValues.push({
+                  name: 'Upper',
+                  value: upperValue,
+                  color: '#EF5350',
+                })
+              }
+            }
+
+            // 하단 밴드 - 초록색
+            const lowerMap = indicatorMaps.get(`${ind.name}_Lower`)
+            if (lowerMap) {
+              const lowerValue = lowerMap.get(time)
+              if (lowerValue !== undefined && !Number.isNaN(lowerValue)) {
+                indicatorValues.push({
+                  name: 'Lower',
+                  value: lowerValue,
+                  color: '#26A69A',
                 })
               }
             }
