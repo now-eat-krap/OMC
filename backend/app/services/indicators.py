@@ -117,8 +117,48 @@ def sma(close: pd.Series, period: int = 20) -> pd.Series:
     return close.rolling(window=period).mean()
 
 
+@jit(nopython=True, cache=True)
+def _ema_numba(close_arr: np.ndarray, period: int, first_valid_idx: int) -> np.ndarray:
+    """Numba로 최적화된 EMA 계산
+
+    Args:
+        close_arr: 종가 배열 (float64)
+        period: EMA 기간
+        first_valid_idx: 첫 번째 유효한(non-NaN) 인덱스
+
+    Returns:
+        EMA 배열
+    """
+    n = len(close_arr)
+    ema_arr = np.empty(n)
+    ema_arr[:] = np.nan
+
+    alpha = 2.0 / (period + 1)
+
+    # EMA 시작 위치
+    ema_start_idx = first_valid_idx + period - 1
+
+    if ema_start_idx >= n:
+        return ema_arr
+
+    # 처음 period개의 SMA 계산
+    sma_sum = 0.0
+    for i in range(first_valid_idx, first_valid_idx + period):
+        sma_sum += close_arr[i]
+    ema_arr[ema_start_idx] = sma_sum / period
+
+    # EMA 공식 적용
+    for i in range(ema_start_idx + 1, n):
+        if not np.isnan(close_arr[i]):
+            ema_arr[i] = alpha * close_arr[i] + (1.0 - alpha) * ema_arr[i - 1]
+        else:
+            ema_arr[i] = ema_arr[i - 1]
+
+    return ema_arr
+
+
 def ema(close: pd.Series, period: int = 20) -> pd.Series:
-    """지수 이동평균 (EMA) - TradingView ta.ema()와 동일
+    """지수 이동평균 (EMA) - TradingView ta.ema()와 동일 (Numba 최적화)
 
     TradingView 방식:
     - 첫 번째 EMA 값은 처음 period개의 SMA
@@ -137,10 +177,6 @@ def ema(close: pd.Series, period: int = 20) -> pd.Series:
     """
     close_arr = close.values.astype(np.float64)
     n = len(close_arr)
-    ema_arr = np.empty(n)
-    ema_arr[:] = np.nan
-
-    alpha = 2.0 / (period + 1)
 
     # 첫 번째 유효한(non-NaN) 인덱스 찾기
     first_valid_idx = 0
@@ -150,23 +186,12 @@ def ema(close: pd.Series, period: int = 20) -> pd.Series:
             break
     else:
         # 모든 값이 NaN인 경우
+        ema_arr = np.empty(n)
+        ema_arr[:] = np.nan
         return pd.Series(ema_arr, index=close.index)
 
-    # 첫 번째 유효한 EMA 시작 위치: first_valid_idx + period - 1
-    ema_start_idx = first_valid_idx + period - 1
-
-    if ema_start_idx < n:
-        # 처음 period개의 유효한 값의 SMA
-        first_sma = np.nanmean(close_arr[first_valid_idx : first_valid_idx + period])
-        ema_arr[ema_start_idx] = first_sma
-
-        # 그 이후: EMA 공식 적용
-        for i in range(ema_start_idx + 1, n):
-            if not np.isnan(close_arr[i]):
-                ema_arr[i] = alpha * close_arr[i] + (1 - alpha) * ema_arr[i - 1]
-            else:
-                # 입력값이 NaN이면 이전 EMA 유지
-                ema_arr[i] = ema_arr[i - 1]
+    # Numba로 EMA 계산 (첫 실행 시 컴파일, 이후 캐시)
+    ema_arr = _ema_numba(close_arr, period, first_valid_idx)
 
     return pd.Series(ema_arr, index=close.index)
 

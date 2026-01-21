@@ -7,6 +7,8 @@ import sentry_sdk
 from celery import Celery
 from sentry_sdk.integrations.celery import CeleryIntegration
 
+from app.core.config import REDIS_DB, REDIS_HOST, REDIS_PASSWORD, REDIS_PORT
+
 # =============================================================================
 # Sentry 초기화 (Celery 에러 추적)
 # =============================================================================
@@ -24,12 +26,6 @@ if SENTRY_DSN:
         # 릴리즈 버전
         release="backtesting@1.0.0",
     )
-
-# Redis 연결 설정
-REDIS_HOST = os.getenv("REDIS_HOST", "redis")
-REDIS_PORT = os.getenv("REDIS_PORT", "6379")
-REDIS_DB = os.getenv("REDIS_DB", "0")
-REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", "")
 
 # Celery 브로커 및 결과 백엔드 URL (비밀번호 있으면 포함)
 if REDIS_PASSWORD:

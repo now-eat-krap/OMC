@@ -62,15 +62,19 @@ async def rate_limit_handler(request: Request, exc: RateLimitExceeded):
     )
 
 
+# =============================================================================
 # CORS 설정 (프론트엔드 연동)
+# =============================================================================
+# 환경변수로 허용 도메인 설정 (쉼표로 구분)
+# 예: ALLOWED_ORIGINS=https://example.com,https://www.example.com
+ALLOWED_ORIGINS = os.getenv(
+    "ALLOWED_ORIGINS",
+    "http://localhost:5173,http://localhost:3000,http://localhost",
+).split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # Vite 개발 서버
-        "http://localhost:3000",  # 기타 프론트엔드
-        "http://localhost",  # Docker Nginx
-        "*",  # 프로덕션에서는 실제 도메인으로 변경
-    ],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
