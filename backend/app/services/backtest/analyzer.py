@@ -176,6 +176,22 @@ class ResultAnalyzer:
         indicator_list = []
         seen = set()  # 중복 방지
 
+        # =================================================================
+        # RSI 설정 미리 추출 (O(N) - 중첩 루프 제거)
+        # {period: {"overbought": int | None, "oversold": int | None}}
+        # =================================================================
+        rsi_config: dict[int, dict[str, int | None]] = {}
+        for c in conditions:
+            if c.indicator == "RSI" and c.indicatorPeriod is not None and c.value is not None:
+                period = c.indicatorPeriod
+                if period not in rsi_config:
+                    rsi_config[period] = {"overbought": None, "oversold": None}
+                # 비교 연산자로 과매수/과매도 구분
+                if c.comparison in ["gt", "gte"]:
+                    rsi_config[period]["overbought"] = int(c.value)
+                elif c.comparison in ["lt", "lte"]:
+                    rsi_config[period]["oversold"] = int(c.value)
+
         # 타임스탬프 배열 생성
         all_timestamps = df.reset_index()["timestamp"].tolist()
 
@@ -194,24 +210,13 @@ class ResultAnalyzer:
                 if key not in seen:
                     seen.add(key)
 
-                    # RSI의 경우 과매수/과매도 값 추출
+                    # RSI의 경우 미리 추출한 설정 사용 (O(1) 조회)
                     rsi_overbought = None
                     rsi_oversold = None
                     if condition.indicator == "RSI":
-                        # 동일한 RSI 지표를 사용하는 모든 조건에서 값 수집
-                        for c in conditions:
-                            if (
-                                c.indicator == "RSI"
-                                and c.indicatorPeriod == condition.indicatorPeriod
-                                and c.value is not None
-                            ):
-                                # 비교 연산자로 과매수/과매도 구분
-                                if c.comparison in ["gt", "gte"]:
-                                    # RSI가 X보다 크면 → 과매수 레벨
-                                    rsi_overbought = int(c.value)
-                                elif c.comparison in ["lt", "lte"]:
-                                    # RSI가 X보다 작으면 → 과매도 레벨
-                                    rsi_oversold = int(c.value)
+                        config = rsi_config.get(condition.indicatorPeriod, {})
+                        rsi_overbought = config.get("overbought")
+                        rsi_oversold = config.get("oversold")
 
                     ind_data = self._get_indicator_data(
                         df,
