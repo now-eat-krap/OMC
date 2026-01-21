@@ -4,7 +4,8 @@
 import os
 
 # Redis 설정
-REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+# Docker 환경에서는 "redis", 로컬에서는 환경변수로 "localhost" 설정
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
 REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
 REDIS_DB = int(os.getenv("REDIS_DB", "0"))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)

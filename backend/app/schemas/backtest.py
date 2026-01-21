@@ -91,6 +91,10 @@ class IndicatorData(BaseModel):
     kLine: list[IndicatorDataPoint] | None = None
     dLine: list[IndicatorDataPoint] | None = None
 
+    # RSI 전용 (과매수/과매도 레벨)
+    rsiOverbought: int | None = Field(default=None, description="RSI 과매수선 (예: 70, 80)")
+    rsiOversold: int | None = Field(default=None, description="RSI 과매도선 (예: 30, 20)")
+
 
 class BacktestResult(BaseModel):
     """백테스트 결과 모델"""

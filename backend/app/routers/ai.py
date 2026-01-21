@@ -3,30 +3,23 @@
 
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import AI_RATE_LIMIT_PER_HOUR, AI_RATE_LIMIT_PER_MINUTE
+from app.schemas.ai import (
+    GenerateReportRequest,
+    ParseStrategyRequest,
+    ParseStrategyResponse,
+    RadarMetrics,
+    StructuredReportResponse,
+)
 from app.services.ai_strategy import ai_strategy_service
 
 router = APIRouter()
 
 # Rate limiter 설정 (IP 기반)
 limiter = Limiter(key_func=get_remote_address)
-
-
-class ParseStrategyRequest(BaseModel):
-    """AI 전략 변환 요청"""
-
-    prompt: str
-
-
-class ParseStrategyResponse(BaseModel):
-    """AI 전략 변환 응답"""
-
-    buyConditions: list
-    sellConditions: list
 
 
 @router.post("/ai/parse-strategy", response_model=ParseStrategyResponse)
@@ -66,87 +59,6 @@ async def ai_health():
         "status": "ok" if OPENAI_API_KEY else "no_api_key",
         "api_key_configured": bool(OPENAI_API_KEY),
     }
-
-
-# ============================================
-# AI 리포트 생성 (구조화된 응답)
-# ============================================
-
-
-class TradeRecord(BaseModel):
-    """개별 거래 기록"""
-
-    entryTime: str
-    exitTime: str | None = None
-    entryPrice: float
-    exitPrice: float | None = None
-    pnl: float
-    pnlPercent: float
-    size: float | None = None
-    isOpen: bool | None = False
-
-
-class BacktestConfig(BaseModel):
-    """백테스트 설정"""
-
-    symbol: str
-    timeframe: str
-    startDate: str
-    endDate: str
-    initialCapital: float
-    feeRate: float
-    slippage: float
-    positionSize: float
-    leverage: float | None = 1
-
-
-class GenerateReportRequest(BaseModel):
-    """AI 리포트 생성 요청 (확장)"""
-
-    # 백테스트 결과 요약
-    totalReturn: float
-    winRate: float
-    maxDrawdown: float
-    totalTrades: int
-    profitTrades: int
-    lossTrades: int
-    sharpeRatio: float
-    profitFactor: float
-
-    # 전략 조건
-    buyConditions: list
-    sellConditions: list
-
-    # 백테스트 설정 (선택적)
-    config: BacktestConfig | None = None
-
-    # 거래내역 (선택적)
-    trades: list[TradeRecord] | None = None
-
-
-class RadarMetrics(BaseModel):
-    """레이더 차트용 지표"""
-
-    profitability: float
-    winRate: float
-    riskManagement: float
-    stability: float
-    profitFactor: float
-
-
-class StructuredReportResponse(BaseModel):
-    """구조화된 AI 리포트 응답"""
-
-    # 백엔드 계산 (객관적)
-    overallScore: int
-    grade: str
-    radarMetrics: RadarMetrics
-
-    # GPT 분석 (주관적)
-    strengths: list[str]
-    weaknesses: list[str]
-    suggestions: list[str]
-    summary: str
 
 
 @router.post("/ai/generate-report", response_model=StructuredReportResponse)
