@@ -68,17 +68,29 @@ class BacktestEngine:
         # 최소 1000개의 warmup 보장 (RSI 등 수렴형 지표가 정확한 값에 도달)
         return max(max_period + 10, 1000)
 
-    async def run(self, request: BacktestRequest) -> BacktestResult:
+    async def run(self, request: BacktestRequest, on_progress: callable = None) -> BacktestResult:
         """백테스트 실행
 
         Args:
             request: 백테스트 요청
+            on_progress: 진행률 콜백 함수 (message: str, percent: int)
 
         Returns:
             BacktestResult
         """
+
+        # 헬퍼 내부 함수: 진행률 업데이트
+        def update(msg: str, p: int):
+            if on_progress:
+                try:
+                    on_progress(msg, p)
+                except Exception:
+                    pass  # 콜백 에러는 무시
+
         profiling = {}
         total_start = time.perf_counter()
+
+        update("데이터 준비 중...", 0)
 
         # 0. Warmup 기간 계산
         step_start = time.perf_counter()
@@ -87,6 +99,7 @@ class BacktestEngine:
         profiling["0_warmup_calc"] = time.perf_counter() - step_start
 
         # 1. OHLCV 데이터 수집 (warmup 포함)
+        update("데이터 수집 중...", 10)
         step_start = time.perf_counter()
         df_full = self.data_service.get_ohlcv_dataframe(
             symbol=request.symbol,
@@ -105,6 +118,7 @@ class BacktestEngine:
         profiling["data_rows"] = len(df)
 
         # 2. 매수/매도 시그널 생성
+        update("거래 시그널 분석 중...", 30)
         step_start = time.perf_counter()
         buy_signal = self.strategy_parser.generate_signal(df, request.buyConditions)
         profiling["2a_buy_signal"] = time.perf_counter() - step_start
@@ -114,6 +128,7 @@ class BacktestEngine:
         profiling["2b_sell_signal"] = time.perf_counter() - step_start
 
         # 3. 요청 기간으로 데이터 트림 (warmup 제외)
+        update("데이터 전처리 중...", 40)
         step_start = time.perf_counter()
         if request.startDate:
             adjusted_start_date = adjust_start_date_for_timeframe(
@@ -132,6 +147,7 @@ class BacktestEngine:
 
         # 4. 시그널 없으면 빈 결과 반환
         if not buy_signal.any() and not sell_signal.any():
+            update("결과 정리 중...", 90)
             ohlcv_data = self.result_analyzer.build_ohlcv(df_trimmed)
             indicators_data = self.result_analyzer.extract_indicators(
                 df, all_conditions, valid_timestamps
@@ -139,6 +155,8 @@ class BacktestEngine:
 
             profiling["total"] = time.perf_counter() - total_start
             logger.debug(f"[PROFILING - No Trades] {profiling}")
+
+            update("완료", 100)
 
             return BacktestResult(
                 totalReturn=0,
@@ -156,6 +174,7 @@ class BacktestEngine:
             )
 
         # 5. VectorBT 포트폴리오 시뮬레이션 (from_order_func: 복리 + 정확한 버림 처리)
+        update("포트폴리오 시뮬레이션 중...", 50)
         step_start = time.perf_counter()
         close = df_trimmed["close"]
         open_price = df_trimmed["open"]
@@ -266,6 +285,7 @@ VectorBT 실제 수량: {first_order["Size"]}
 """)
 
         # 6. 결과 추출
+        update("결과 정리 중...", 90)
         step_start = time.perf_counter()
 
         total_return = safe_float(portfolio.total_return() * 100)

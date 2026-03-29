@@ -86,18 +86,17 @@ services:
       - backtesting-network
 
   # ===========================================================================
-  # Celery Worker - 백테스트 작업 처리
+  # RQ Worker - 백테스트 작업 처리
   # ===========================================================================
   # 백그라운드에서 백테스트 작업을 처리하는 Worker
-  # N100 환경에서는 concurrency=1~2 권장
   # ===========================================================================
-  celery-worker:
+  rq-worker:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: backtesting-worker
+    container_name: backtesting-rq-worker
     restart: unless-stopped
-    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    command: rq worker backtest --url redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0 --with-scheduler
     environment:
       <<: *common-env
     depends_on:

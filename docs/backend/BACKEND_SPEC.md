@@ -1,0 +1,261 @@
+# 백엔드 기능 명세서
+
+> 백테스팅 시스템의 백엔드 아키텍처 및 핵심 로직 문서
+
+---
+
+## 📋 목차
+
+1. [아키텍처 개요](#아키텍처-개요)
+2. [핵심 서비스](#핵심-서비스)
+3. [데이터 흐름](#데이터-흐름)
+4. [기술 지표](#기술-지표)
+5. [캐싱 전략](#캐싱-전략)
+6. [비동기 처리](#비동기-처리)
+
+---
+
+## 아키텍처 개요
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   FastAPI   │────▶│   Celery    │────▶│   Redis     │
+│   (API)     │     │  (Worker)   │     │  (Broker)   │
+└─────────────┘     └─────────────┘     └─────────────┘
+                           │
+                    ┌──────┴──────┐
+                    ▼             ▼
+            ┌───────────┐  ┌───────────┐
+            │ VectorBT  │  │  Binance  │
+            │(Backtest) │  │  (Data)   │
+            └───────────┘  └───────────┘
+```
+
+### 디렉토리 구조
+
+```
+backend/
+├── app/
+│   ├── main.py              # FastAPI 엔트리포인트
+│   ├── celery_app.py        # Celery 워커 설정
+│   ├── routers/             # API 라우터
+│   │   ├── backtest.py      # 백테스트 API
+│   │   ├── assets.py        # 자산 API
+│   │   └── ai.py            # AI API
+│   ├── services/            # 비즈니스 로직
+│   │   ├── backtest/        # 백테스트 엔진
+│   │   │   ├── engine.py    # 시뮬레이션 실행
+│   │   │   ├── analyzer.py  # 결과 분석
+│   │   │   └── strategy.py  # 시그널 생성
+│   │   ├── data.py          # OHLCV 데이터 수집
+│   │   ├── cache.py         # Redis 캐시
+│   │   ├── indicators.py    # 기술 지표 (Numba 최적화)
+│   │   └── scheduler.py     # 캐시 갱신 스케줄러
+│   ├── schemas/             # Pydantic 모델
+│   └── core/                # 설정
+└── tests/                   # 테스트
+```
+
+---
+
+## 핵심 서비스
+
+### 1. BacktestEngine
+
+**역할**: VectorBT 기반 백테스트 시뮬레이션 실행
+
+**위치**: `services/backtest/engine.py`
+
+**주요 메서드**:
+
+| 메서드                       | 설명                              |
+| ---------------------------- | --------------------------------- |
+| `run(request)`               | 백테스트 전체 실행 (async)        |
+| `_calculate_warmup_period()` | 지표 계산을 위한 워밍업 기간 산출 |
+
+**처리 흐름**:
+
+1. Warmup 기간 계산
+2. OHLCV 데이터 수집 (warmup 포함)
+3. 매수/매도 시그널 생성
+4. VectorBT 포트폴리오 시뮬레이션
+5. 결과 분석 및 반환
+
+---
+
+### 2. StrategyParser
+
+**역할**: 조건 기반 매수/매도 시그널 생성
+
+**위치**: `services/backtest/strategy.py`
+
+**지원 조건 템플릿**:
+
+| 템플릿               | 설명            | 예시                     |
+| -------------------- | --------------- | ------------------------ |
+| `indicator_vs_value` | 지표 vs 값 비교 | RSI < 30                 |
+| `indicator_cross`    | 지표 교차       | SMA(20) 상향돌파 SMA(50) |
+| `price_cross`        | 가격 교차       | 종가 > EMA(20)           |
+| `band_touch`         | 밴드 터치       | 볼린저 하단 터치         |
+| `macd_signal`        | MACD 시그널     | MACD 골든크로스          |
+| `stochastic`         | 스토캐스틱      | %K 과매도                |
+
+---
+
+### 3. ResultAnalyzer
+
+**역할**: 백테스트 결과 분석 및 통계 계산
+
+**위치**: `services/backtest/analyzer.py`
+
+**주요 메서드**:
+
+| 메서드                 | 설명                                   |
+| ---------------------- | -------------------------------------- |
+| `build_ohlcv()`        | OHLCV 데이터 변환                      |
+| `build_trades()`       | 거래 내역 생성 (수수료, 슬리피지 포함) |
+| `build_equity_curve()` | 수익 곡선 생성                         |
+| `extract_indicators()` | 사용된 지표 데이터 추출                |
+
+---
+
+### 4. DataService
+
+**역할**: OHLCV 데이터 수집 (Binance API + Redis 캐시)
+
+**위치**: `services/data.py`
+
+**데이터 소스 우선순위**:
+
+1. Redis 캐시 조회
+2. 캐시 미스 시 Binance API 호출
+
+---
+
+### 5. CandleCache
+
+**역할**: Redis 기반 캔들 데이터 캐싱
+
+**위치**: `services/cache.py`
+
+**캐시 키 형식**: `candle:BTC_USDT:1d`
+
+**갱신 주기**: 매일 00:05 UTC (APScheduler)
+
+---
+
+## 데이터 흐름
+
+### 백테스트 실행 흐름
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant Celery
+    participant Engine
+    participant Redis
+
+    Client->>API: POST /api/backtest
+    API->>Celery: 작업 큐에 추가
+    API-->>Client: task_id 반환
+
+    Celery->>Engine: run(request)
+    Engine->>Redis: 캐시 조회
+    Redis-->>Engine: OHLCV 데이터
+    Engine->>Engine: 시그널 생성
+    Engine->>Engine: VectorBT 시뮬레이션
+    Engine-->>Celery: BacktestResult
+
+    Client->>API: GET /api/backtest/status/{task_id}
+    API->>Celery: 결과 조회
+    Celery-->>API: 결과
+    API-->>Client: BacktestResult
+```
+
+---
+
+## 기술 지표
+
+### 지원 지표 목록
+
+| 지표            | 함수                | Numba 최적화        |
+| --------------- | ------------------- | ------------------- |
+| RSI             | `rsi()`             | ✅ (`_rma_numba`)   |
+| EMA             | `ema()`             | ✅ (`_ema_numba`)   |
+| SMA             | `sma()`             | ❌ (pandas rolling) |
+| MACD            | `macd()`            | ✅ (EMA 사용)       |
+| Bollinger Bands | `bollinger_bands()` | ❌                  |
+| Stochastic      | `stochastic()`      | ❌                  |
+
+### TradingView 호환성
+
+모든 지표는 **TradingView Pine Script**와 동일한 계산 방식 사용:
+
+- RSI: ta.rma() 방식 (첫 값은 SMA, 이후 RMA)
+- EMA: ta.ema() 방식 (첫 값은 SMA)
+
+---
+
+## 캐싱 전략
+
+### Redis 캐시 구조
+
+```
+Redis
+├── candle:BTC_USDT:1d     → JSON 배열 (모든 캔들)
+├── candle:BTC_USDT:1h     → JSON 배열
+├── candle:ETH_USDT:1d     → JSON 배열
+└── cache:last_update      → 마지막 업데이트 날짜
+```
+
+### 캐시 갱신 스케줄
+
+- **서버 시작 시**: 캐시가 비어있으면 초기화 (2017년~현재)
+- **매일 00:05 UTC**: 새 캔들 추가
+
+---
+
+## 비동기 처리
+
+### Celery 설정
+
+| 설정         | 값    |
+| ------------ | ----- |
+| Broker       | Redis |
+| Backend      | Redis |
+| 동시 작업 수 | 2     |
+| 결과 만료    | 1시간 |
+
+### 작업 상태
+
+```
+PENDING → RUNNING → SUCCESS/FAILURE
+```
+
+---
+
+## 환경 변수
+
+| 변수              | 설명             | 기본값    |
+| ----------------- | ---------------- | --------- |
+| `REDIS_HOST`      | Redis 호스트     | redis     |
+| `REDIS_PORT`      | Redis 포트       | 6379      |
+| `REDIS_PASSWORD`  | Redis 비밀번호   | (없음)    |
+| `OPENAI_API_KEY`  | OpenAI API 키    | (필수)    |
+| `ALLOWED_ORIGINS` | CORS 허용 도메인 | localhost |
+| `SENTRY_DSN`      | Sentry DSN       | (선택)    |
+
+---
+
+## 모니터링
+
+### Prometheus 메트릭
+
+- **엔드포인트**: `GET /metrics`
+- **수집 항목**: 요청 수, 응답 시간, 에러율
+
+### Sentry 에러 추적
+
+- FastAPI 및 Celery 에러 자동 전송
+- 환경변수 `SENTRY_DSN` 설정 시 활성화
