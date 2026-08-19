@@ -16,13 +16,13 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
   return (
     <div className="space-y-5">
       {/* 섹션 헤더 */}
-      <h3 className="text-lg font-semibold text-white">거래 설정</h3>
+      <h3 className="text-lg font-semibold text-strong">거래 설정</h3>
 
       {/* 거래 수수료 */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <label className="text-sm text-white/60">거래 수수료</label>
-          <span className="text-sm text-white font-mono">{config.feeRate}%</span>
+          <label className="text-sm text-muted">거래 수수료</label>
+          <span className="text-sm text-strong font-mono">{config.feeRate}%</span>
         </div>
         <input
           type="range"
@@ -31,9 +31,9 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
           step={0.01}
           value={config.feeRate}
           onChange={(e) => handleChange('feeRate', Number(e.target.value))}
-          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+          className="w-full h-2 bg-raise appearance-none cursor-pointer accent-white"
         />
-        <div className="flex justify-between text-xs text-white/40">
+        <div className="flex justify-between text-xs text-dim">
           <span>0%</span>
           <span>0.5%</span>
           <span>1%</span>
@@ -43,8 +43,8 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
       {/* 슬리피지 */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <label className="text-sm text-white/60">슬리피지</label>
-          <span className="text-sm text-white font-mono">{config.slippage}%</span>
+          <label className="text-sm text-muted">슬리피지</label>
+          <span className="text-sm text-strong font-mono">{config.slippage}%</span>
         </div>
         <input
           type="range"
@@ -53,9 +53,9 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
           step={0.01}
           value={config.slippage}
           onChange={(e) => handleChange('slippage', Number(e.target.value))}
-          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+          className="w-full h-2 bg-raise appearance-none cursor-pointer accent-white"
         />
-        <div className="flex justify-between text-xs text-white/40">
+        <div className="flex justify-between text-xs text-dim">
           <span>0%</span>
           <span>0.25%</span>
           <span>0.5%</span>
@@ -65,8 +65,8 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
       {/* 포지션 비율 */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <label className="text-sm text-white/60">포지션 비율</label>
-          <span className="text-sm text-white font-mono">{config.positionSize}%</span>
+          <label className="text-sm text-muted">포지션 비율</label>
+          <span className="text-sm text-strong font-mono">{config.positionSize}%</span>
         </div>
         <input
           type="range"
@@ -75,9 +75,9 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
           step={5}
           value={config.positionSize}
           onChange={(e) => handleChange('positionSize', Number(e.target.value))}
-          className="w-full h-2 bg-white/10 rounded-lg appearance-none cursor-pointer accent-white"
+          className="w-full h-2 bg-raise appearance-none cursor-pointer accent-white"
         />
-        <div className="flex justify-between text-xs text-white/40">
+        <div className="flex justify-between text-xs text-dim">
           <span>10%</span>
           <span>50%</span>
           <span>100%</span>
@@ -87,18 +87,18 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
       {/* 레버리지 */}
       <div className="space-y-2">
         <div className="flex justify-between items-center">
-          <label className="text-sm text-white/60">레버리지</label>
-          <span className="text-sm text-white font-mono font-bold">{config.leverage}x</span>
+          <label className="text-sm text-muted">레버리지</label>
+          <span className="text-sm text-strong font-mono font-bold">{config.leverage}x</span>
         </div>
         <div className="grid grid-cols-5 gap-2">
           {[1, 2, 3, 5, 10].map((lev) => (
             <button
               key={lev}
               onClick={() => handleChange('leverage', lev)}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`px-3 py-2 text-sm font-medium transition-all ${
                 config.leverage === lev
-                  ? 'bg-purple-500/20 text-white border border-purple-500'
-                  : 'bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10 border border-transparent'
+                  ? 'bg-wash text-strong border border-accent'
+                  : 'bg-raise text-dim hover:text-muted hover:bg-raise border border-transparent'
               }`}
             >
               {lev}x
@@ -106,7 +106,7 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
           ))}
         </div>
         {config.leverage > 1 && (
-          <p className="text-xs text-white/40 flex items-center gap-1">
+          <p className="text-xs text-dim flex items-center gap-1">
             ⚠️ 레버리지 사용 시 위험이 증가합니다
           </p>
         )}

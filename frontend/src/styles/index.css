@@ -1,130 +1,161 @@
-/* Pretendard 폰트 - 모던하고 깔끔한 한글 폰트 */
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+/* =============================================================================
+   OMC 디자인 시스템 — 터미널 방향
+   =============================================================================
+   - 한글/UI: Pretendard, 숫자/라벨: IBM Plex Mono
+   - 색은 전부 CSS 변수로 두고 :root(다크)와 [data-theme="light"]에서 값만 교체
+   - Tailwind v4 @theme으로 유틸리티(bg-canvas, text-ink ...)에 연결
+   ========================================================================== */
 
-@import "tailwindcss";
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
+@import 'tailwindcss';
+
+/* -----------------------------------------------------------------------------
+   팔레트 — 다크(기본)
+   -------------------------------------------------------------------------- */
 :root {
-  font-family: "Pretendard Variable", Pretendard, -apple-system,
-    BlinkMacSystemFont, system-ui, Roboto, "Helvetica Neue", "Segoe UI",
-    "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji",
-    "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+  --omc-bg: #070809; /* 화면 바닥 */
+  --omc-panel: #0c0e10; /* 패널 */
+  --omc-raise: #13171a; /* 세그먼트 컨트롤 등 살짝 뜬 면 */
+  --omc-line: #242b2f; /* 구획선 */
+  --omc-hair: #161a1d; /* 행 구분선 */
+  --omc-ink: #edf0ee; /* 본문 */
+  --omc-muted: #8a9490; /* 보조 텍스트 */
+  --omc-dim: #57625e; /* 흐린 텍스트 */
+  --omc-strong: #ffffff; /* 제목/강조 */
+  --omc-accent: #ffb020; /* 액센트 — 주요 버튼과 활성 상태에만 */
+  --omc-accent-ink: #070809; /* 액센트 위 글자색 */
+  --omc-wash: rgba(255, 176, 32, 0.09); /* 액센트 배경 */
+  --omc-up: #35d08a; /* 수익 */
+  --omc-down: #ff5a46; /* 손실 */
+  --omc-wick: #4a5450; /* 캔들 심지 */
+  --omc-scrim: rgba(0, 0, 0, 0.66); /* 모달 뒤를 덮는 막 */
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #0a0a0f;
-
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  /* Electric Purple 테마 색상 */
-  --color-primary: #a855f7; /* 메인 보라 */
-  --color-primary-light: #c084fc; /* 밝은 보라 */
-  --color-secondary: #7c3aed; /* 진보라 */
-  --color-accent: #06b6d4; /* 청록 액센트 */
-  --color-accent-light: #22d3ee; /* 밝은 청록 */
-
-  /* GooeyNav 파티클 색상 */
-  --color-1: #a855f7; /* purple-500 - 메인 */
-  --color-2: #7c3aed; /* violet-600 - 서브 */
-  --color-3: #c084fc; /* purple-400 - 라이트 */
-  --color-4: #06b6d4; /* cyan-500 - 액센트 */
+  color-scheme: dark;
 }
 
-a {
-  font-weight: 500;
-  color: #a855f7;
-  text-decoration: inherit;
+/* -----------------------------------------------------------------------------
+   팔레트 — 라이트
+   -------------------------------------------------------------------------- */
+[data-theme='light'] {
+  --omc-bg: #f7f5f0;
+  --omc-panel: #ffffff;
+  --omc-raise: #efece4;
+  --omc-line: #dcd7ca;
+  --omc-hair: #eae6dc;
+  --omc-ink: #14171a;
+  --omc-muted: #5f6a66;
+  --omc-dim: #9aa29c;
+  --omc-strong: #000000;
+  --omc-accent: #b37400;
+  --omc-accent-ink: #ffffff;
+  --omc-wash: rgba(179, 116, 0, 0.08);
+  --omc-up: #0e8c5b;
+  --omc-down: #d33b28;
+  --omc-wick: #9aa29c;
+  --omc-scrim: rgba(20, 23, 26, 0.42);
+
+  color-scheme: light;
 }
 
-a:hover {
-  color: #c084fc;
+/* -----------------------------------------------------------------------------
+   Tailwind 토큰 연결 — bg-canvas, text-ink, border-line, font-mono ...
+   -------------------------------------------------------------------------- */
+@theme {
+  --color-canvas: var(--omc-bg);
+  --color-panel: var(--omc-panel);
+  --color-raise: var(--omc-raise);
+  --color-line: var(--omc-line);
+  --color-hair: var(--omc-hair);
+  --color-ink: var(--omc-ink);
+  --color-muted: var(--omc-muted);
+  --color-dim: var(--omc-dim);
+  --color-strong: var(--omc-strong);
+  --color-accent: var(--omc-accent);
+  --color-accent-ink: var(--omc-accent-ink);
+  --color-wash: var(--omc-wash);
+  --color-scrim: var(--omc-scrim);
+  --color-up: var(--omc-up);
+  --color-down: var(--omc-down);
+
+  --font-sans:
+    'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
+    'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
 }
 
-html,
-body,
-#root {
-  height: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-body {
-  min-width: 320px;
-  background-color: #0a0a0f;
-}
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-
-button:hover {
-  border-color: #a855f7;
-}
-
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
+/* -----------------------------------------------------------------------------
+   기본 요소
+   -----------------------------------------------------------------------------
+   반드시 @layer base 안에 둔다. 레이어 밖에 두면 Tailwind의 유틸리티(@layer
+   utilities)보다 우선해서, 예컨대 a 태그의 색이 text-* 유틸리티를 덮어쓴다.
+   (버튼으로 쓰는 <Link>의 글자가 배경과 같은 색이 되어 안 보이던 원인)
+   -------------------------------------------------------------------------- */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
   }
 
-  a:hover {
-    color: #747bff;
+  body {
+    min-width: 320px;
+    background-color: var(--omc-bg);
+    color: var(--omc-ink);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* 색을 따로 지정하지 않은 링크만 액센트로 */
+  a {
+    color: var(--omc-accent);
+    text-decoration: inherit;
   }
 
   button {
-    background-color: #f9f9f9;
+    font-family: inherit;
+    cursor: pointer;
   }
 }
 
-/* StarBorder 애니메이션 */
-@keyframes star-movement-bottom {
-  0% {
-    transform: translate(0%, 0%);
-    opacity: 1;
+@layer components {
+  /* 숫자는 자릿수가 흔들리지 않게 */
+  .tnum {
+    font-variant-numeric: tabular-nums;
   }
-  100% {
-    transform: translate(-100%, 0%);
-    opacity: 0;
+
+  /* 대문자 마이크로 라벨 (SUMMARY, TOTAL RETURN ...) */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--omc-muted);
   }
 }
 
-@keyframes star-movement-top {
-  0% {
-    transform: translate(0%, 0%);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(100%, 0%);
-    opacity: 0;
-  }
+/* 스크롤바도 팔레트에 맞춘다 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--omc-line) transparent;
 }
 
-.animate-star-movement-bottom {
-  animation: star-movement-bottom linear infinite alternate;
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
 }
 
-.animate-star-movement-top {
-  animation: star-movement-top linear infinite alternate;
+*::-webkit-scrollbar-thumb {
+  background: var(--omc-line);
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }

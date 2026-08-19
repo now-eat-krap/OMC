@@ -36,24 +36,22 @@ function SlotDropdown({
   return (
     <Select.Root value={String(value)} onValueChange={onChange}>
       <Select.Trigger
-        className="inline-flex items-center justify-between gap-1 px-2 py-1 min-w-[70px]
-                   bg-white/8 border border-white/15 rounded-lg
-                   text-white/90 font-medium text-xs cursor-pointer
-                   hover:bg-white/12 hover:border-white/25
+        className="inline-flex items-center justify-between gap-1 px-2 py-1 min-w-[70px] bg-raise border border-line 
+                   text-ink font-medium text-xs cursor-pointer
+                   hover:bg-raise hover:border-line
                    focus:outline-none focus:ring-1 focus:ring-white/30
                    transition-all duration-150
-                   data-[placeholder]:text-white/40"
+                   data-[placeholder]:text-dim"
       >
         <Select.Value />
         <Select.Icon>
-          <ChevronDown className="w-3 h-3 text-white/50" />
+          <ChevronDown className="w-3 h-3 text-muted" />
         </Select.Icon>
       </Select.Trigger>
 
       <Select.Portal>
         <Select.Content
-          className="overflow-hidden bg-gray-900/98 backdrop-blur-xl border border-white/15 
-                     rounded-lg shadow-xl z-[100]"
+          className="overflow-hidden bg-panel backdrop-blur-xl border border-line z-[100]"
           position="popper"
           sideOffset={4}
         >
@@ -62,15 +60,14 @@ function SlotDropdown({
               <Select.Item
                 key={opt.value}
                 value={String(opt.value)}
-                className="relative flex items-center px-2 py-1.5 pr-6 rounded text-xs text-white/70
-                           cursor-pointer select-none outline-none
-                           data-[highlighted]:bg-white/10 data-[highlighted]:text-white
-                           data-[state=checked]:text-white data-[state=checked]:font-medium
-                           transition-colors"
+                className="relative flex items-center px-2 py-1.5 pr-6 rounded text-xs text-muted cursor-pointer select-none outline-none
+                           data-[highlighted]:bg-raise data-[highlighted]:text-strong
+                           data-[state=checked]:text-strong data-[state=checked]:font-medium
+ transition-colors"
               >
                 <Select.ItemText>{opt.label}</Select.ItemText>
                 <Select.ItemIndicator className="absolute right-1.5">
-                  <Check className="w-3 h-3 text-white/60" />
+                  <Check className="w-3 h-3 text-muted" />
                 </Select.ItemIndicator>
               </Select.Item>
             ))}
@@ -105,10 +102,9 @@ function NumberSlot({
       min={min}
       max={max}
       step={step}
-      className={`w-14 px-2 py-1 text-center
-                  bg-white/8 border border-white/15 rounded-lg
-                  text-white/90 font-medium text-xs
-                  hover:bg-white/12 hover:border-white/25
+      className={`w-14 px-2 py-1 text-center bg-raise border border-line 
+                  text-ink font-medium text-xs
+                  hover:bg-raise hover:border-line
                   focus:outline-none focus:ring-1 focus:ring-white/30
                   transition-all duration-150
                   [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none
@@ -198,22 +194,22 @@ export default function SentenceCondition({
               options={indicatorOptionsForValue}
               onChange={(v) => updateSlot('indicator', v as IndicatorType)}
             />
-            <span className="text-white/40 text-sm font-light">(</span>
+            <span className="text-dim text-sm font-light">(</span>
             <NumberSlot
               value={condition.indicatorPeriod || 14}
               onChange={(v) => updateSlot('indicatorPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/40 text-sm font-light">)</span>
-            <span className="text-white/60 text-sm font-medium px-1">가</span>
+            <span className="text-dim text-sm font-light">)</span>
+            <span className="text-muted text-sm font-medium px-1">가</span>
             <NumberSlot
               value={condition.value || 30}
               onChange={(v) => updateSlot('value', v)}
               min={0}
               max={1000}
             />
-            <span className="text-white/60 text-sm font-medium px-1">보다</span>
+            <span className="text-muted text-sm font-medium px-1">보다</span>
             <SlotDropdown
               value={condition.comparison || 'lt'}
               options={comparisonOptions}
@@ -231,35 +227,35 @@ export default function SentenceCondition({
               options={indicatorOptionsForCross}
               onChange={(v) => updateSlot('indicator', v as IndicatorType)}
             />
-            <span className="text-white/60">(</span>
+            <span className="text-muted">(</span>
             <NumberSlot
               value={condition.indicatorPeriod || 5}
               onChange={(v) => updateSlot('indicatorPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/60">)</span>
-            <span className="text-white/80">가</span>
+            <span className="text-muted">)</span>
+            <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.targetIndicator || 'SMA'}
               options={indicatorOptionsForCross}
               onChange={(v) => updateSlot('targetIndicator', v as IndicatorType)}
             />
-            <span className="text-white/60">(</span>
+            <span className="text-muted">(</span>
             <NumberSlot
               value={condition.targetPeriod || 20}
               onChange={(v) => updateSlot('targetPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/60">)</span>
-            <span className="text-white/80">을</span>
+            <span className="text-muted">)</span>
+            <span className="text-ink">을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
               options={crossDirectionOptions}
               onChange={(v) => updateSlot('crossDirection', v as 'above' | 'below')}
             />
-            <span className="text-white/80">돌파할 때</span>
+            <span className="text-ink">돌파할 때</span>
           </>
         )
 
@@ -272,27 +268,27 @@ export default function SentenceCondition({
               options={priceTypeOptions}
               onChange={(v) => updateSlot('priceType', v as 'close' | 'high' | 'low' | 'open')}
             />
-            <span className="text-white/80">가</span>
+            <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.targetIndicator || 'SMA'}
               options={indicatorOptionsForCross}
               onChange={(v) => updateSlot('targetIndicator', v as IndicatorType)}
             />
-            <span className="text-white/60">(</span>
+            <span className="text-muted">(</span>
             <NumberSlot
               value={condition.targetPeriod || 20}
               onChange={(v) => updateSlot('targetPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/60">)</span>
-            <span className="text-white/80">을</span>
+            <span className="text-muted">)</span>
+            <span className="text-ink">을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
               options={crossDirectionOptions}
               onChange={(v) => updateSlot('crossDirection', v as 'above' | 'below')}
             />
-            <span className="text-white/80">돌파할 때</span>
+            <span className="text-ink">돌파할 때</span>
           </>
         )
 
@@ -300,7 +296,7 @@ export default function SentenceCondition({
       case 'profit_loss':
         return (
           <>
-            <span className="text-white/80">현재가가 진입가 대비</span>
+            <span className="text-ink">현재가가 진입가 대비</span>
             <NumberSlot
               value={condition.value || 10}
               onChange={(v) => updateSlot('value', v)}
@@ -308,7 +304,7 @@ export default function SentenceCondition({
               max={1000}
               step={0.5}
             />
-            <span className="text-white/80">%</span>
+            <span className="text-ink">%</span>
             <SlotDropdown
               value={condition.profitDirection || 'profit'}
               options={profitDirectionOptions}
@@ -326,32 +322,32 @@ export default function SentenceCondition({
               options={priceTypeOptions}
               onChange={(v) => updateSlot('priceType', v as 'close' | 'high' | 'low' | 'open')}
             />
-            <span className="text-white/80">가</span>
+            <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.bandType || 'bollinger'}
               options={bandTypeOptions}
               onChange={(v) => updateSlot('bandType', v as 'bollinger' | 'keltner' | 'envelope')}
             />
-            <span className="text-white/60">(</span>
+            <span className="text-muted">(</span>
             <NumberSlot
               value={condition.indicatorPeriod || 20}
               onChange={(v) => updateSlot('indicatorPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/60">)</span>
+            <span className="text-muted">)</span>
             <SlotDropdown
               value={condition.bandPosition || 'lower'}
               options={bandPositionOptions}
               onChange={(v) => updateSlot('bandPosition', v as 'upper' | 'middle' | 'lower')}
             />
-            <span className="text-white/80">에</span>
+            <span className="text-ink">에</span>
             <SlotDropdown
               value={condition.touchType || 'touch'}
               options={touchTypeOptions}
               onChange={(v) => updateSlot('touchType', v as 'touch' | 'cross' | 'exit')}
             />
-            <span className="text-white/80">할 때</span>
+            <span className="text-ink">할 때</span>
           </>
         )
 
@@ -359,13 +355,13 @@ export default function SentenceCondition({
       case 'macd_signal':
         return (
           <>
-            <span className="text-white/80">MACD가 시그널선을</span>
+            <span className="text-ink">MACD가 시그널선을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
               options={crossDirectionOptions}
               onChange={(v) => updateSlot('crossDirection', v as 'above' | 'below')}
             />
-            <span className="text-white/80">돌파할 때</span>
+            <span className="text-ink">돌파할 때</span>
           </>
         )
 
@@ -373,22 +369,22 @@ export default function SentenceCondition({
       case 'stochastic':
         return (
           <>
-            <span className="text-white/80">스토캐스틱</span>
-            <span className="text-white/60">(</span>
+            <span className="text-ink">스토캐스틱</span>
+            <span className="text-muted">(</span>
             <NumberSlot
               value={condition.indicatorPeriod || 14}
               onChange={(v) => updateSlot('indicatorPeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/60">)</span>
-            <span className="text-white/80">%K가 %D를</span>
+            <span className="text-muted">)</span>
+            <span className="text-ink">%K가 %D를</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
               options={crossDirectionOptions}
               onChange={(v) => updateSlot('crossDirection', v as 'above' | 'below')}
             />
-            <span className="text-white/80">돌파할 때</span>
+            <span className="text-ink">돌파할 때</span>
           </>
         )
 
@@ -413,7 +409,7 @@ export default function SentenceCondition({
                 )
               }
             />
-            <span className="text-white/80">캔들이 출현할 때</span>
+            <span className="text-ink">캔들이 출현할 때</span>
           </>
         )
 
@@ -421,14 +417,14 @@ export default function SentenceCondition({
       case 'volume':
         return (
           <>
-            <span className="text-white/80">거래량이</span>
+            <span className="text-ink">거래량이</span>
             <NumberSlot
               value={condition.volumePeriod || 20}
               onChange={(v) => updateSlot('volumePeriod', v)}
               min={1}
               max={200}
             />
-            <span className="text-white/80">일 평균의</span>
+            <span className="text-ink">일 평균의</span>
             <NumberSlot
               value={condition.volumeMultiplier || 2}
               onChange={(v) => updateSlot('volumeMultiplier', v)}
@@ -436,7 +432,7 @@ export default function SentenceCondition({
               max={10}
               step={0.1}
             />
-            <span className="text-white/80">배</span>
+            <span className="text-ink">배</span>
             <SlotDropdown
               value={condition.comparison || 'gte'}
               options={comparisonOptions}
@@ -449,7 +445,7 @@ export default function SentenceCondition({
       case 'price_change':
         return (
           <>
-            <span className="text-white/80">전일 대비</span>
+            <span className="text-ink">전일 대비</span>
             <NumberSlot
               value={condition.priceChangePercent || 5}
               onChange={(v) => updateSlot('priceChangePercent', v)}
@@ -457,35 +453,33 @@ export default function SentenceCondition({
               max={100}
               step={0.5}
             />
-            <span className="text-white/80">% 이상</span>
+            <span className="text-ink">% 이상</span>
             <SlotDropdown
               value={condition.priceChangeDirection || 'up'}
               options={priceChangeDirectionOptions}
               onChange={(v) => updateSlot('priceChangeDirection', v as 'up' | 'down')}
             />
-            <span className="text-white/80">할 때</span>
+            <span className="text-ink">할 때</span>
           </>
         )
 
       default:
-        return <span className="text-white/40">알 수 없는 조건</span>
+        return <span className="text-dim">알 수 없는 조건</span>
     }
   }
 
   return (
     <div
-      className="group flex items-center gap-1.5 px-3 py-2 
-                    bg-white/[0.06] border border-white/10 rounded-lg 
-                    hover:bg-white/[0.08] hover:border-white/20
+      className="group flex items-center gap-1.5 px-3 py-2 bg-raise border border-line  
+                    hover:bg-line hover:border-line
                     transition-all duration-150"
     >
-      <div className="flex items-center gap-1 flex-wrap flex-1 text-white/70 text-xs">
+      <div className="flex items-center gap-1 flex-wrap flex-1 text-muted text-xs">
         {renderSentence()}
       </div>
       <button
         onClick={onDelete}
-        className="p-1 rounded-md
-                   text-white/30 hover:text-red-400 hover:bg-red-500/10
+        className="p-1 text-dim hover:text-down hover:bg-down/15
                    transition-all duration-150 flex-shrink-0 opacity-0 group-hover:opacity-100"
         title="조건 삭제"
       >

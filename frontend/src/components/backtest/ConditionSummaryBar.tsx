@@ -47,7 +47,7 @@ export default function ConditionSummaryBar({
   const hasAnyConditions = hasBuyConditions || hasSellConditions
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-30 bg-gray-900/95 backdrop-blur-md border-t border-white/10">
+    <div className="fixed bottom-0 left-0 right-0 z-30 bg-panel backdrop-blur-md border-t border-line">
       <div className="max-w-7xl mx-auto px-6 py-4">
         <div className="flex items-center justify-between gap-4">
           {/* 조건 요약 */}
@@ -60,23 +60,23 @@ export default function ConditionSummaryBar({
                   {buyConditions.slice(0, 2).map((block, i) => (
                     <span
                       key={block.id}
-                      className="px-2 py-1 rounded bg-white/10 text-white text-xs whitespace-nowrap truncate"
+                      className="px-2 py-1 rounded bg-raise text-strong text-xs whitespace-nowrap truncate"
                     >
-                      {i > 0 && <span className="text-white/40 mr-1">·</span>}
+                      {i > 0 && <span className="text-dim mr-1">·</span>}
                       {summarizeCondition(block)}
                     </span>
                   ))}
                   {buyConditions.length > 2 && (
-                    <span className="text-white/40 text-xs">+{buyConditions.length - 2}</span>
+                    <span className="text-dim text-xs">+{buyConditions.length - 2}</span>
                   )}
                 </div>
               ) : (
-                <span className="text-white/40 text-xs">매수 조건 없음</span>
+                <span className="text-dim text-xs">매수 조건 없음</span>
               )}
             </div>
 
             {/* 구분선 */}
-            <div className="w-px h-6 bg-white/10 flex-shrink-0" />
+            <div className="w-px h-6 bg-raise flex-shrink-0" />
 
             {/* 매도 조건 */}
             <div className="flex items-center gap-2 min-w-0">
@@ -86,18 +86,18 @@ export default function ConditionSummaryBar({
                   {sellConditions.slice(0, 2).map((block, i) => (
                     <span
                       key={block.id}
-                      className="px-2 py-1 rounded bg-white/10 text-white text-xs whitespace-nowrap truncate"
+                      className="px-2 py-1 rounded bg-raise text-strong text-xs whitespace-nowrap truncate"
                     >
-                      {i > 0 && <span className="text-white/40 mr-1">·</span>}
+                      {i > 0 && <span className="text-dim mr-1">·</span>}
                       {summarizeCondition(block)}
                     </span>
                   ))}
                   {sellConditions.length > 2 && (
-                    <span className="text-white/40 text-xs">+{sellConditions.length - 2}</span>
+                    <span className="text-dim text-xs">+{sellConditions.length - 2}</span>
                   )}
                 </div>
               ) : (
-                <span className="text-white/40 text-xs">매도 조건 없음</span>
+                <span className="text-dim text-xs">매도 조건 없음</span>
               )}
             </div>
           </div>
@@ -107,7 +107,7 @@ export default function ConditionSummaryBar({
             {/* 조건 편집 버튼 */}
             <button
               onClick={onOpenPanel}
-              className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-colors"
+              className="px-4 py-2 bg-raise border border-line text-strong text-sm font-medium hover:bg-raise transition-colors"
             >
               ⚙️ 조건 편집
             </button>
@@ -116,10 +116,10 @@ export default function ConditionSummaryBar({
             <button
               onClick={onRunBacktest}
               disabled={!hasAnyConditions || isRunning}
-              className={`px-6 py-2 rounded-xl text-sm font-semibold transition-all ${
+              className={`px-6 py-2 text-sm font-semibold transition-all ${
                 hasAnyConditions && !isRunning
-                  ? 'bg-white text-black hover:bg-white/90'
-                  : 'bg-white/20 text-white/40 cursor-not-allowed'
+                  ? 'bg-accent text-accent-ink hover:opacity-90'
+                  : 'bg-line text-dim cursor-not-allowed'
               }`}
             >
               {isRunning ? '⏳ 실행 중...' : '▶️ 백테스트 실행'}

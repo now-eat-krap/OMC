@@ -33,10 +33,10 @@ function MenuItem({ label, icon, active, onClick }: MenuItemProps) {
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-all border-l-2 ${
+      className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all border-l-2 ${
         active
-          ? 'bg-white/10 text-white border-purple-500'
-          : 'text-white/40 hover:text-white/70 hover:bg-white/5 border-transparent'
+          ? 'bg-raise text-strong border-accent'
+          : 'text-dim hover:text-muted hover:bg-raise border-transparent'
       }`}
     >
       <span className={active ? 'opacity-100' : 'opacity-50'}>{icon}</span>
@@ -71,17 +71,15 @@ function ConditionList({
     <div className="flex flex-col h-full">
       {/* 헤더 */}
       <div
-        className={`flex items-center gap-2 mb-3 pb-2 border-b ${isBuy ? 'border-green-500/30' : 'border-red-500/30'}`}
+        className={`flex items-center gap-2 mb-3 pb-2 border-b ${isBuy ? 'border-up' : 'border-down'}`}
       >
         {isBuy ? (
-          <ArrowUpCircle className="w-4 h-4 text-green-400" />
+          <ArrowUpCircle className="w-4 h-4 text-up" />
         ) : (
-          <ArrowDownCircle className="w-4 h-4 text-red-400" />
+          <ArrowDownCircle className="w-4 h-4 text-down" />
         )}
-        <h4 className={`text-sm font-semibold ${isBuy ? 'text-green-400' : 'text-red-400'}`}>
-          {title}
-        </h4>
-        <span className="text-xs text-white/40 ml-auto">{conditions.length}개</span>
+        <h4 className={`text-sm font-semibold ${isBuy ? 'text-up' : 'text-down'}`}>{title}</h4>
+        <span className="text-xs text-dim ml-auto">{conditions.length}개</span>
       </div>
 
       {/* 조건 목록 - SentenceConditionItem 사용으로 세부 편집 가능 */}
@@ -101,8 +99,8 @@ function ConditionList({
                     onClick={() => onToggleOperator(index)}
                     className={`px-2 py-0.5 rounded text-[10px] font-bold transition-all ${
                       condition.nextOperator === 'OR'
-                        ? 'bg-orange-500/20 text-orange-400 hover:bg-orange-500/30'
-                        : 'bg-purple-500/20 text-purple-400 hover:bg-purple-500/30'
+                        ? 'bg-wash text-accent hover:bg-wash'
+                        : 'bg-wash text-accent hover:bg-wash'
                     }`}
                   >
                     {condition.nextOperator || 'AND'}
@@ -112,20 +110,19 @@ function ConditionList({
             </div>
           ))
         ) : (
-          <div className="text-center py-8 text-white/30 text-xs">조건이 없습니다</div>
+          <div className="text-center py-8 text-dim text-xs">조건이 없습니다</div>
         )}
       </div>
 
       {/* 하단 추가 버튼 */}
-      <div className="mt-3 pt-3 border-t border-white/10">
+      <div className="mt-3 pt-3 border-t border-line">
         <button
           onClick={onAddClick}
-          className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl 
-                      border transition-all text-sm font-semibold
+          className={`w-full flex items-center justify-center gap-2 py-2.5 border transition-all text-sm font-semibold
                       ${
                         isBuy
-                          ? 'bg-green-500/10 border-green-500/30 text-green-400 hover:bg-green-500/20'
-                          : 'bg-red-500/10 border-red-500/30 text-red-400 hover:bg-red-500/20'
+                          ? 'bg-up/15 border-up text-up hover:bg-up/15'
+                          : 'bg-down/15 border-down text-down hover:bg-down/15'
                       }`}
         >
           <Plus className="w-4 h-4" />
@@ -171,8 +168,8 @@ export default function SettingsModal({
   const menuItems: { id: MenuSection; label: string; icon: ReactNode }[] = [
     { id: 'basic', label: '기본 설정', icon: <Settings className="w-5 h-5" /> },
     { id: 'trading', label: '거래 설정', icon: <Coins className="w-5 h-5" /> },
-    { id: 'strategy', label: '전략 조건', icon: <Target className="w-5 h-5 text-purple-400" /> },
-    { id: 'ai', label: 'AI 전략', icon: <Sparkles className="w-5 h-5 text-pink-400" /> },
+    { id: 'strategy', label: '전략 조건', icon: <Target className="w-5 h-5 text-accent" /> },
+    { id: 'ai', label: 'AI 전략', icon: <Sparkles className="w-5 h-5 text-accent" /> },
   ]
 
   // 매수 조건 핸들러
@@ -243,7 +240,7 @@ export default function SettingsModal({
           <>
             <div className="h-full flex gap-4">
               {/* 왼쪽: 매수 조건 목록 */}
-              <div className="flex-1 min-w-0 bg-green-500/5 rounded-xl p-4 border border-green-500/20">
+              <div className="flex-1 min-w-0 bg-up/5 p-4 border border-up">
                 <ConditionList
                   title="매수 조건"
                   type="buy"
@@ -256,7 +253,7 @@ export default function SettingsModal({
               </div>
 
               {/* 오른쪽: 매도 조건 목록 */}
-              <div className="flex-1 min-w-0 bg-red-500/5 rounded-xl p-4 border border-red-500/20">
+              <div className="flex-1 min-w-0 bg-down/5 p-4 border border-down">
                 <ConditionList
                   title="매도 조건"
                   type="sell"
@@ -273,21 +270,21 @@ export default function SettingsModal({
             {addModalOpen && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center">
                 <div
-                  className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                  className="absolute inset-0 bg-scrim backdrop-blur-sm"
                   onClick={() => setAddModalOpen(null)}
                 />
-                <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-gray-900 border border-white/20 rounded-2xl shadow-2xl p-6">
+                <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-panel border border-line p-6">
                   {/* 모달 헤더 */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
-                      <Target className="w-5 h-5 text-purple-400" />
-                      <h3 className="text-lg font-semibold text-white">
+                      <Target className="w-5 h-5 text-accent" />
+                      <h3 className="text-lg font-semibold text-strong">
                         {addModalOpen === 'buy' ? '매수 조건 추가' : '매도 조건 추가'}
                       </h3>
                     </div>
                     <button
                       onClick={() => setAddModalOpen(null)}
-                      className="p-2 rounded-lg hover:bg-white/10 text-white/40 hover:text-white transition-colors"
+                      className="p-2 hover:bg-raise text-dim hover:text-strong transition-colors"
                     >
                       <X className="w-5 h-5" />
                     </button>
@@ -332,16 +329,16 @@ export default function SettingsModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* 배경 오버레이 */}
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
 
       {/* 모달 컨테이너 - 화면 가로 90% */}
-      <div className="relative w-[90vw] h-[90vh] bg-gray-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex">
+      <div className="relative w-[90vw] h-[90vh] bg-panel border border-line overflow-hidden flex">
         {/* 왼쪽 사이드바 (메뉴) */}
-        <div className="w-56 flex-shrink-0 bg-black/30 border-r border-white/10 p-4 flex flex-col">
+        <div className="w-56 flex-shrink-0 bg-panel border-r border-line p-4 flex flex-col">
           {/* 헤더 */}
           <div className="mb-6">
-            <h2 className="text-lg font-bold text-white">전략 설정</h2>
-            <p className="text-xs text-white/40 mt-1">백테스팅 조건 설정</p>
+            <h2 className="text-lg font-bold text-strong">전략 설정</h2>
+            <p className="text-xs text-dim mt-1">백테스팅 조건 설정</p>
           </div>
 
           {/* 메뉴 리스트 */}
@@ -361,7 +358,7 @@ export default function SettingsModal({
           {/* 닫기 버튼 */}
           <button
             onClick={onClose}
-            className="mt-4 w-full px-4 py-2 rounded-lg bg-white/5 border border-white/10 text-white text-sm hover:bg-white/10 transition-colors"
+            className="mt-4 w-full px-4 py-2 bg-raise border border-line text-strong text-sm hover:bg-raise transition-colors"
           >
             닫기
           </button>
@@ -370,11 +367,11 @@ export default function SettingsModal({
         {/* 오른쪽 콘텐츠 영역 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* 콘텐츠 헤더 */}
-          <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between flex-shrink-0">
-            <h3 className="text-lg font-semibold text-white">{getSectionTitle()}</h3>
+          <div className="px-6 py-4 border-b border-line flex items-center justify-between flex-shrink-0">
+            <h3 className="text-lg font-semibold text-strong">{getSectionTitle()}</h3>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors text-white/60 hover:text-white"
+              className="p-2 hover:bg-raise transition-colors text-muted hover:text-strong"
             >
               <X className="w-5 h-5" />
             </button>

@@ -2,27 +2,13 @@
 // 요약, 수익곡선, 거래내역, 전략 탭
 
 import { useState, useEffect, useRef, useMemo, type ReactNode } from 'react'
-import {
-  BarChart3,
-  TrendingUp,
-  ClipboardList,
-  Settings,
-  Circle,
-  Pencil,
-  Crosshair,
-  Sparkles,
-  Loader2,
-} from 'lucide-react'
+import { TrendingUp, ClipboardList, Pencil, Crosshair, Sparkles, Loader2 } from 'lucide-react'
 import { createChart, ColorType, AreaSeries, HistogramSeries } from 'lightweight-charts'
 import type { IChartApi, Time } from 'lightweight-charts'
 import type { BacktestResult, SentenceCondition } from './types'
-import {
-  COMPARISON_LABELS,
-  PRICE_TYPE_LABELS,
-  CROSS_DIRECTION_LABELS,
-  PROFIT_DIRECTION_LABELS,
-} from './types'
-import MagicBento, { ParticleCard } from '../effects/MagicBento'
+import { formatCondition } from './formatCondition'
+import { useTheme } from '../../theme/useTheme'
+import { getChartPalette } from '../../theme/chartColors'
 
 // 탭 타입
 type TabId = 'summary' | 'equity' | 'trades' | 'strategy' | 'ai-report'
@@ -30,137 +16,113 @@ type TabId = 'summary' | 'equity' | 'trades' | 'strategy' | 'ai-report'
 interface TabButtonProps {
   id: TabId
   label: string
-  icon: ReactNode
   active: boolean
   onClick: () => void
 }
 
-function TabButton({ label, icon, active, onClick }: TabButtonProps) {
+function TabButton({ label, active, onClick }: TabButtonProps) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-all border-b-2 ${
+      className={`px-4 py-3.5 text-[13px] bg-transparent border-0 transition-colors ${
         active
-          ? 'text-white border-purple-500'
-          : 'text-white/50 border-transparent hover:text-white/80 hover:border-white/20'
+          ? 'text-strong font-semibold shadow-[inset_0_-2px_0_var(--omc-accent)]'
+          : 'text-muted hover:text-ink'
       }`}
     >
-      {icon}
-      <span>{label}</span>
+      {label}
     </button>
   )
 }
 
-// 요약 탭 콘텐츠 - MagicBento 적용
+// 요약 탭 콘텐츠 — 지표를 한 줄로 늘어놓는다
 function SummaryTab({ result }: { result: BacktestResult | null }) {
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-full text-white/40 text-sm">
-        백테스트를 실행하면 결과가 여기에 표시됩니다.
+      <div className="flex flex-col items-center justify-center gap-3.5 h-full">
+        <span className="font-mono text-xs tracking-[0.3em] text-dim">NO RESULT</span>
+        <span className="text-sm text-muted">
+          조건을 세우고 <span className="text-accent font-medium">RUN</span>을 누르면 결과가 여기에
+          표시됩니다.
+        </span>
       </div>
     )
   }
 
+  const signed = (value: number, digits = 2) => `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`
+
+  const usdt = (value?: number) =>
+    value === undefined
+      ? ''
+      : `${value >= 0 ? '+' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`
+
+  const cells: { label: string; value: string; sub: string; tone: string }[] = [
+    {
+      label: 'TOTAL RETURN',
+      value: `${signed(result.totalReturn)}%`,
+      sub: usdt(result.totalReturnUsdt),
+      tone: result.totalReturn >= 0 ? 'text-up' : 'text-down',
+    },
+    {
+      label: 'WIN RATE',
+      value: `${result.winRate.toFixed(1)}%`,
+      sub: `${result.profitTrades}W / ${result.lossTrades}L`,
+      tone: 'text-ink',
+    },
+    {
+      label: 'MAX DRAWDOWN',
+      value: `-${Math.abs(result.maxDrawdown).toFixed(2)}%`,
+      sub:
+        result.maxDrawdownUsdt === undefined
+          ? ''
+          : `-${Math.abs(result.maxDrawdownUsdt).toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`,
+      tone: 'text-down',
+    },
+    {
+      label: 'SHARPE',
+      value: result.sharpeRatio !== null ? result.sharpeRatio.toFixed(2) : '-',
+      sub: '연 환산',
+      tone: 'text-ink',
+    },
+    {
+      label: 'PROFIT FACTOR',
+      value: result.profitFactor.toFixed(2),
+      sub: '총이익 / 총손실',
+      tone: 'text-ink',
+    },
+    {
+      label: 'TRADES',
+      value: `${result.totalTrades}`,
+      sub: `수익 ${result.profitTrades} · 손실 ${result.lossTrades}`,
+      tone: 'text-ink',
+    },
+  ]
+
   return (
-    <MagicBento
-      enableStars={true}
-      enableSpotlight={true}
-      enableBorderGlow={true}
-      enableTilt={true}
-      enableMagnetism={true}
-      clickEffect={true}
-      spotlightRadius={300}
-      particleCount={12}
-      glowColor="132, 0, 255"
-      className="flex items-stretch gap-6 h-full px-3 py-1"
-    >
-      {/* 총 수익률 카드 */}
-      <ParticleCard className="flex-1 flex flex-col items-center justify-center min-w-0 rounded-xl border border-white/10 transition-all card card--border-glow">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium mb-1">
-          총 수익률
-        </span>
-        <span
-          className={`text-3xl font-bold ${result.totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}`}
+    <div className="flex h-full overflow-x-auto">
+      {cells.map((cell, index) => (
+        <div
+          key={cell.label}
+          className={`flex-1 min-w-[160px] px-5 py-4 flex flex-col gap-2 justify-center ${
+            index > 0 ? 'border-l border-line' : ''
+          }`}
         >
-          {result.totalReturn >= 0 ? '+' : ''}
-          {result.totalReturn.toFixed(2)}%
-        </span>
-        <span
-          className={`text-sm ${result.totalReturn >= 0 ? 'text-green-400/70' : 'text-red-400/70'}`}
-        >
-          {result.totalReturnUsdt !== undefined && (
-            <>
-              {result.totalReturnUsdt >= 0 ? '+' : ''}
-              {result.totalReturnUsdt.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT
-            </>
-          )}
-        </span>
-      </ParticleCard>
-
-      {/* 최대 낙폭 카드 */}
-      <ParticleCard className="flex-1 flex flex-col items-center justify-center min-w-0 rounded-xl border border-white/10 transition-all card card--border-glow">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium mb-1">
-          최대 낙폭
-        </span>
-        <span className="text-3xl font-bold text-red-400">{result.maxDrawdown.toFixed(2)}%</span>
-        <span className="text-sm text-red-400/70">
-          {result.maxDrawdownUsdt !== undefined && (
-            <>
-              -{result.maxDrawdownUsdt.toLocaleString(undefined, { maximumFractionDigits: 2 })} USDT
-            </>
-          )}
-        </span>
-      </ParticleCard>
-
-      {/* 거래 통계 카드 */}
-      <ParticleCard className="flex-1 flex flex-col items-center justify-center min-w-0 rounded-xl border border-white/10 transition-all card card--border-glow">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium mb-1">
-          거래 통계
-        </span>
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-bold text-white">{result.winRate.toFixed(1)}%</span>
-            <span className="text-[11px] text-white/40">승률</span>
-          </div>
-          <div className="w-px h-8 bg-white/10" />
-          <div className="flex flex-col items-center">
-            <span className="text-xl font-bold text-white">
-              {result.profitTrades}/{result.totalTrades}
-            </span>
-            <span className="text-[11px] text-white/40">수익/총 거래</span>
-          </div>
+          <span className="label">{cell.label}</span>
+          <span
+            className={`font-mono tnum text-[30px] font-medium leading-none tracking-[-0.025em] ${cell.tone}`}
+          >
+            {cell.value}
+          </span>
+          <span className="font-mono tnum text-[11px] text-dim">{cell.sub}</span>
         </div>
-      </ParticleCard>
-
-      {/* 샤프 비율 카드 */}
-      <ParticleCard className="flex-1 flex flex-col items-center justify-center min-w-0 rounded-xl border border-white/10 transition-all card card--border-glow">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium mb-1">
-          샤프 비율
-        </span>
-        <span
-          className={`text-3xl font-bold ${result.sharpeRatio !== null && result.sharpeRatio >= 1 ? 'text-green-400' : 'text-yellow-400'}`}
-        >
-          {result.sharpeRatio !== null ? result.sharpeRatio.toFixed(3) : '-'}
-        </span>
-      </ParticleCard>
-
-      {/* 수익 팩터 카드 */}
-      <ParticleCard className="flex-1 flex flex-col items-center justify-center min-w-0 rounded-xl border border-white/10 transition-all card card--border-glow">
-        <span className="text-xs text-white/50 uppercase tracking-wider font-medium mb-1">
-          수익 팩터
-        </span>
-        <span
-          className={`text-3xl font-bold ${result.profitFactor >= 1.5 ? 'text-green-400' : 'text-yellow-400'}`}
-        >
-          {result.profitFactor.toFixed(2)}
-        </span>
-      </ParticleCard>
-    </MagicBento>
+      ))}
+    </div>
   )
 }
 
 // 수익곡선 탭 콘텐츠 (거래 기반 lightweight-charts - 거래 청산 시점만 표시)
 function EquityTab({ result }: { result: BacktestResult | null }) {
+  const { theme } = useTheme()
   const chartContainerRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<IChartApi | null>(null)
   const [hoverInfo, setHoverInfo] = useState<{
@@ -292,24 +254,25 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
       chartRef.current = null
     }
 
-    // 차트 생성
+    // 차트 생성 (색은 테마 팔레트에서)
+    const palette = getChartPalette(theme)
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: 'transparent' },
-        textColor: 'rgba(255, 255, 255, 0.6)',
+        textColor: palette.text,
       },
       grid: {
-        vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-        horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+        vertLines: { color: palette.grid },
+        horzLines: { color: palette.grid },
       },
-      rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.1)' },
+      rightPriceScale: { borderColor: palette.border },
       timeScale: {
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: palette.border,
         timeVisible: true,
       },
       crosshair: {
-        vertLine: { color: 'rgba(168, 85, 247, 0.5)', width: 1, style: 2 },
-        horzLine: { color: 'rgba(168, 85, 247, 0.5)', width: 1, style: 2 },
+        vertLine: { color: palette.crosshair, width: 1, style: 2 },
+        horzLine: { color: palette.crosshair, width: 1, style: 2 },
       },
       handleScale: { axisPressedMouseMove: true },
       handleScroll: { mouseWheel: true, pressedMouseMove: true },
@@ -321,9 +284,9 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     const areaSeries = chart.addSeries(
       AreaSeries,
       {
-        lineColor: '#8b5cf6',
-        topColor: 'rgba(139, 92, 246, 0.4)',
-        bottomColor: 'rgba(139, 92, 246, 0.0)',
+        lineColor: palette.accent,
+        topColor: `${palette.accent}59`,
+        bottomColor: `${palette.accent}00`,
         lineWidth: 2,
         priceLineVisible: false,
       },
@@ -342,7 +305,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     const runupSeries = chart.addSeries(
       HistogramSeries,
       {
-        color: '#22c55e',
+        color: palette.up,
         priceLineVisible: false,
         lastValueVisible: false,
       },
@@ -354,7 +317,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
       .map((point) => ({
         time: point.time as Time,
         value: point.runup,
-        color: '#22c55e',
+        color: palette.up,
       }))
 
     runupSeries.setData(runupData)
@@ -363,7 +326,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     const drawdownSeries = chart.addSeries(
       HistogramSeries,
       {
-        color: '#ef4444',
+        color: palette.down,
         priceLineVisible: false,
         lastValueVisible: false,
       },
@@ -375,7 +338,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
       .map((point) => ({
         time: point.time as Time,
         value: -Math.abs(point.drawdown), // 음수로 표시
-        color: '#ef4444',
+        color: palette.down,
       }))
 
     drawdownSeries.setData(drawdownData)
@@ -440,11 +403,11 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
         chartRef.current = null
       }
     }
-  }, [equityData, stats])
+  }, [equityData, stats, theme])
 
   if (!result?.trades || result.trades.length === 0 || !stats) {
     return (
-      <div className="flex items-center justify-center h-full text-white/40 text-sm gap-2">
+      <div className="flex items-center justify-center h-full text-dim text-sm gap-2">
         <TrendingUp className="w-4 h-4" />
         거래 내역이 없습니다.
       </div>
@@ -454,48 +417,48 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
   return (
     <div className="relative w-full h-full min-h-[150px]">
       {/* 통계 정보 (좌측 상단) */}
-      <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 text-xs pointer-events-none">
+      <div className="absolute top-2 left-2 z-10 bg-panel backdrop-blur-sm px-3 py-2 text-xs pointer-events-none">
         {hoverInfo ? (
           <div className="flex flex-col gap-1">
-            <span className="text-white/60">
+            <span className="text-muted">
               {hoverInfo.tradeNum === 0 ? '시작' : `거래 #${hoverInfo.tradeNum}`} · {hoverInfo.date}
             </span>
             <div className="flex items-center gap-3">
-              <span className="text-white">자산: ${hoverInfo.value.toLocaleString()}</span>
-              <span className={hoverInfo.pnl >= 0 ? 'text-green-400' : 'text-red-400'}>
+              <span className="text-strong">자산: ${hoverInfo.value.toLocaleString()}</span>
+              <span className={hoverInfo.pnl >= 0 ? 'text-up' : 'text-down'}>
                 {hoverInfo.pnl >= 0 ? '+' : ''}
                 {hoverInfo.pnlPercent.toFixed(2)}%
               </span>
               {hoverInfo.tradeNum > 0 && (
                 <>
-                  <span className="text-green-400">런업: +{hoverInfo.runup?.toFixed(2)}%</span>
-                  <span className="text-red-400">DD: {hoverInfo.drawdown?.toFixed(2)}%</span>
+                  <span className="text-up">런업: +{hoverInfo.runup?.toFixed(2)}%</span>
+                  <span className="text-down">DD: {hoverInfo.drawdown?.toFixed(2)}%</span>
                 </>
               )}
             </div>
           </div>
         ) : (
           <div className="flex items-center gap-4">
-            <span className="text-white/60">
-              시작: <span className="text-white">${stats.initialValue.toLocaleString()}</span>
+            <span className="text-muted">
+              시작: <span className="text-strong">${stats.initialValue.toLocaleString()}</span>
             </span>
-            <span className="text-white/60">
+            <span className="text-muted">
               종료:{' '}
-              <span className={stats.totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}>
+              <span className={stats.totalReturn >= 0 ? 'text-up' : 'text-down'}>
                 ${stats.finalValue.toLocaleString()}
               </span>
             </span>
-            <span className="text-white/60">
+            <span className="text-muted">
               수익:{' '}
-              <span className={stats.totalReturn >= 0 ? 'text-green-400' : 'text-red-400'}>
+              <span className={stats.totalReturn >= 0 ? 'text-up' : 'text-down'}>
                 {stats.totalReturn >= 0 ? '+' : ''}
                 {stats.totalReturn.toFixed(2)}%
               </span>
             </span>
-            <span className="text-white/60">
-              MDD: <span className="text-red-400">-{stats.maxDrawdown.toFixed(2)}%</span>
+            <span className="text-muted">
+              MDD: <span className="text-down">-{stats.maxDrawdown.toFixed(2)}%</span>
             </span>
-            <span className="text-purple-400">{stats.totalTrades}개 거래</span>
+            <span className="text-accent">{stats.totalTrades}개 거래</span>
           </div>
         )}
       </div>
@@ -516,7 +479,7 @@ function TradesTab({
 }) {
   if (!result || !result.trades || result.trades.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-white/40 text-sm gap-2">
+      <div className="flex items-center justify-center h-full text-dim text-sm gap-2">
         <ClipboardList className="w-4 h-4" />
         거래 내역이 없습니다.
       </div>
@@ -549,7 +512,7 @@ function TradesTab({
     <div className="h-full overflow-auto px-4 py-2">
       <table className="w-full text-xs border-collapse">
         <thead className="sticky top-0 bg-black">
-          <tr className="text-white/50 border-b border-white/10">
+          <tr className="text-muted border-b border-line">
             <th className="text-left py-2 px-2 font-medium">거래</th>
             <th className="text-left py-2 px-2 font-medium">타입</th>
             <th className="text-left py-2 px-2 font-medium">날짜/시간</th>
@@ -567,16 +530,13 @@ function TradesTab({
         {[...(result.trades || [])].reverse().map((trade, idx) => {
           const tradeNum = (result.trades?.length || 0) - idx
           return (
-            <tbody
-              key={idx}
-              className={`hover:bg-white/5 ${trade.isOpen ? 'bg-yellow-500/5' : ''}`}
-            >
+            <tbody key={idx} className={`hover:bg-raise ${trade.isOpen ? 'bg-accent/5' : ''}`}>
               {/* 매수청산 행 (위) */}
-              <tr className="border-b border-white/5">
-                <td className="py-1.5 px-2 text-white/60" rowSpan={2}>
+              <tr className="border-b border-hair">
+                <td className="py-1.5 px-2 text-muted" rowSpan={2}>
                   <span className="font-medium">#{tradeNum}</span>
                   {trade.isOpen && (
-                    <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-yellow-500/20 text-yellow-400">
+                    <span className="ml-1 inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium bg-wash text-accent">
                       미실현
                     </span>
                   )}
@@ -584,7 +544,7 @@ function TradesTab({
                 <td className="py-1.5 px-2">
                   <div className="flex items-center gap-1">
                     <span
-                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${trade.isOpen ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}
+                      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${trade.isOpen ? 'bg-wash text-accent' : 'bg-down/15 text-down'}`}
                     >
                       {trade.isOpen ? '보유중' : '매수청산'}
                     </span>
@@ -593,30 +553,30 @@ function TradesTab({
                       onClick={() =>
                         onScrollToTime?.(trade.isOpen ? trade.entryTime : trade.exitTime)
                       }
-                      className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-purple-400 transition-colors"
+                      className="p-0.5 rounded hover:bg-raise text-dim hover:text-accent transition-colors"
                       title="차트에서 보기"
                     >
                       <Crosshair className="w-3 h-3" />
                     </button>
                   </div>
                 </td>
-                <td className="py-1.5 px-2 text-white/80">
+                <td className="py-1.5 px-2 text-ink">
                   {trade.isOpen ? '-' : formatDate(trade.exitTime)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white font-medium">
+                <td className="py-1.5 px-2 text-right text-strong font-medium">
                   {trade.isOpen ? (
-                    <span className="text-yellow-400">현재가</span>
+                    <span className="text-accent">현재가</span>
                   ) : (
                     `$${formatNumber(trade.exitPrice)}`
                   )}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white/60">
+                <td className="py-1.5 px-2 text-right text-muted">
                   ${formatNumber(trade.exitFee)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white/60">
+                <td className="py-1.5 px-2 text-right text-muted">
                   ${formatNumber(trade.exitSlippage)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white" rowSpan={2}>
+                <td className="py-1.5 px-2 text-right text-strong" rowSpan={2}>
                   {/* 수량 + 달러 가치 */}
                   <div>{formatNumber(trade.size, result.amountPrecision || 6)}</div>
                   <div className="text-[10px]">
@@ -624,7 +584,7 @@ function TradesTab({
                   </div>
                 </td>
                 <td
-                  className={`py-1.5 px-2 text-right font-medium ${trade.isOpen ? 'text-yellow-400' : trade.pnl >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                  className={`py-1.5 px-2 text-right font-medium ${trade.isOpen ? 'text-accent' : trade.pnl >= 0 ? 'text-up' : 'text-down'}`}
                   rowSpan={2}
                 >
                   <div>
@@ -635,7 +595,7 @@ function TradesTab({
                     {formatNumber(trade.pnlPercent)}%
                   </div>
                 </td>
-                <td className="py-1.5 px-2 text-right text-white" rowSpan={2}>
+                <td className="py-1.5 px-2 text-right text-strong" rowSpan={2}>
                   {/* 런업: 달러 + 퍼센트 */}
                   <div>
                     $
@@ -645,7 +605,7 @@ function TradesTab({
                   </div>
                   <div className="text-[10px]">+{formatNumber(trade.runup)}%</div>
                 </td>
-                <td className="py-1.5 px-2 text-right text-white" rowSpan={2}>
+                <td className="py-1.5 px-2 text-right text-strong" rowSpan={2}>
                   {/* 드로다운: 달러 + 퍼센트 */}
                   <div>
                     -$
@@ -656,7 +616,7 @@ function TradesTab({
                   <div className="text-[10px]">{formatNumber(trade.drawdown)}%</div>
                 </td>
                 <td
-                  className={`py-1.5 px-2 text-right font-medium ${(trade.cumulativePnl || 0) >= 0 ? 'text-green-400' : 'text-red-400'}`}
+                  className={`py-1.5 px-2 text-right font-medium ${(trade.cumulativePnl || 0) >= 0 ? 'text-up' : 'text-down'}`}
                   rowSpan={2}
                 >
                   {/* 누적손익: 달러 + 퍼센트 (초기자본 대비) */}
@@ -686,30 +646,30 @@ function TradesTab({
                 </td>
               </tr>
               {/* 매수진입 행 (아래) */}
-              <tr className="border-b-2 border-white/20">
+              <tr className="border-b-2 border-line">
                 <td className="py-1.5 px-2">
                   <div className="flex items-center gap-1">
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-500/20 text-green-400">
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-up/15 text-up">
                       매수진입
                     </span>
                     {/* 진입 시점으로 차트 이동 버튼 */}
                     <button
                       onClick={() => onScrollToTime?.(trade.entryTime)}
-                      className="p-0.5 rounded hover:bg-white/10 text-white/40 hover:text-purple-400 transition-colors"
+                      className="p-0.5 rounded hover:bg-raise text-dim hover:text-accent transition-colors"
                       title="차트에서 보기"
                     >
                       <Crosshair className="w-3 h-3" />
                     </button>
                   </div>
                 </td>
-                <td className="py-1.5 px-2 text-white/80">{formatDate(trade.entryTime)}</td>
-                <td className="py-1.5 px-2 text-right text-white font-medium">
+                <td className="py-1.5 px-2 text-ink">{formatDate(trade.entryTime)}</td>
+                <td className="py-1.5 px-2 text-right text-strong font-medium">
                   ${formatNumber(trade.entryPrice)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white/60">
+                <td className="py-1.5 px-2 text-right text-muted">
                   ${formatNumber(trade.entryFee)}
                 </td>
-                <td className="py-1.5 px-2 text-right text-white/60">
+                <td className="py-1.5 px-2 text-right text-muted">
                   ${formatNumber(trade.entrySlippage)}
                 </td>
               </tr>
@@ -799,7 +759,7 @@ function AIReportTab({
 
   if (!result) {
     return (
-      <div className="flex items-center justify-center h-full text-white/40 text-sm gap-2">
+      <div className="flex items-center justify-center h-full text-dim text-sm gap-2">
         <Sparkles className="w-4 h-4" />
         백테스트를 실행한 후 AI 리포트를 생성할 수 있습니다.
       </div>
@@ -812,14 +772,14 @@ function AIReportTab({
         {/* 헤더 및 생성 버튼 */}
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-400" />
-            <span className="text-white font-medium">AI 분석 리포트</span>
+            <Sparkles className="w-5 h-5 text-accent" />
+            <span className="text-strong font-medium">AI 분석 리포트</span>
           </div>
           <div className="flex gap-2">
             {report && (
               <button
                 onClick={() => setShowModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 hover:bg-white/20 text-white/80 rounded-lg transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-raise hover:bg-line text-ink transition-colors"
               >
                 리포트 보기
               </button>
@@ -827,7 +787,7 @@ function AIReportTab({
             <button
               onClick={handleGenerateReport}
               disabled={isLoading}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-2 px-4 py-2 bg-wash hover:bg-wash text-accent transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
@@ -846,7 +806,7 @@ function AIReportTab({
 
         {/* 에러 메시지 */}
         {error && (
-          <div className="mb-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg text-red-300 text-sm flex-shrink-0">
+          <div className="mb-4 p-3 bg-down/15 border border-down text-down text-sm flex-shrink-0">
             {error}
           </div>
         )}
@@ -856,15 +816,15 @@ function AIReportTab({
           {report ? (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {/* 점수 카드 */}
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-white">{report.overallScore}</div>
-                <div className="text-sm text-white/50">종합 점수</div>
+              <div className="bg-raise p-4 text-center">
+                <div className="text-3xl font-bold text-strong">{report.overallScore}</div>
+                <div className="text-sm text-muted">종합 점수</div>
                 <div
                   className={`mt-2 inline-block px-2 py-0.5 rounded text-xs font-semibold ${
                     report.grade.startsWith('A')
-                      ? 'bg-green-500/20 text-green-400'
+                      ? 'bg-up/15 text-up'
                       : report.grade.startsWith('B')
-                        ? 'bg-purple-500/20 text-purple-400'
+                        ? 'bg-wash text-accent'
                         : 'bg-amber-500/20 text-amber-400'
                   }`}
                 >
@@ -873,31 +833,31 @@ function AIReportTab({
               </div>
 
               {/* 강점 수 */}
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-green-400">{report.strengths.length}</div>
-                <div className="text-sm text-white/50">강점</div>
+              <div className="bg-raise p-4 text-center">
+                <div className="text-3xl font-bold text-up">{report.strengths.length}</div>
+                <div className="text-sm text-muted">강점</div>
               </div>
 
               {/* 약점 수 */}
-              <div className="bg-white/5 rounded-xl p-4 text-center">
+              <div className="bg-raise p-4 text-center">
                 <div className="text-3xl font-bold text-amber-400">{report.weaknesses.length}</div>
-                <div className="text-sm text-white/50">약점</div>
+                <div className="text-sm text-muted">약점</div>
               </div>
 
               {/* 제안 수 */}
-              <div className="bg-white/5 rounded-xl p-4 text-center">
-                <div className="text-3xl font-bold text-blue-400">{report.suggestions.length}</div>
-                <div className="text-sm text-white/50">개선 제안</div>
+              <div className="bg-raise p-4 text-center">
+                <div className="text-3xl font-bold text-accent">{report.suggestions.length}</div>
+                <div className="text-sm text-muted">개선 제안</div>
               </div>
 
               {/* 요약 */}
-              <div className="col-span-2 md:col-span-4 bg-white/5 rounded-xl p-4">
-                <p className="text-white/80 text-sm">{report.summary}</p>
+              <div className="col-span-2 md:col-span-4 bg-raise p-4">
+                <p className="text-ink text-sm">{report.summary}</p>
               </div>
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-white/40 gap-4">
-              <Sparkles className="w-12 h-12 text-purple-500/30" />
+            <div className="flex flex-col items-center justify-center h-full text-dim gap-4">
+              <Sparkles className="w-12 h-12 text-accent/30" />
               <div className="text-center">
                 <p className="text-lg">AI 리포트를 생성해보세요</p>
                 <p className="text-sm mt-1">
@@ -959,8 +919,8 @@ function AIReportModalLazy(props: {
   return (
     <Suspense
       fallback={
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <Loader2 className="w-8 h-8 animate-spin text-white" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-panel">
+          <Loader2 className="w-8 h-8 animate-spin text-strong" />
         </div>
       }
     >
@@ -979,98 +939,45 @@ function StrategyTab({
   sellConditions: SentenceCondition[]
   onEdit: () => void
 }) {
-  // 문장형 조건을 읽기 쉬운 텍스트로 변환
-  const formatCondition = (condition: SentenceCondition) => {
-    switch (condition.templateType) {
-      case 'indicator_vs_value':
-        return `${condition.indicator}(${condition.indicatorPeriod}) ${COMPARISON_LABELS[condition.comparison || 'lt']?.replace(' 때', '') || ''} ${condition.value}`
-      case 'indicator_cross':
-        return `${condition.indicator}(${condition.indicatorPeriod}) ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} 돌파 ${condition.targetIndicator}(${condition.targetPeriod})`
-      case 'price_cross':
-        return `${PRICE_TYPE_LABELS[condition.priceType || 'close']} ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} 돌파 ${condition.targetIndicator}(${condition.targetPeriod})`
-      case 'profit_loss':
-        return `진입가 대비 ${condition.value}% ${PROFIT_DIRECTION_LABELS[condition.profitDirection || 'profit']}`
-      case 'band_touch':
-        return `${PRICE_TYPE_LABELS[condition.priceType || 'low']} BB ${condition.bandPosition === 'upper' ? '상단' : '하단'} 터치`
-      case 'macd_signal':
-        return `MACD ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} 시그널`
-      case 'stochastic':
-        return `스토캐스틱 %K ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} %D`
-      case 'candle_pattern':
-        return `${condition.candlePattern || 'hammer'} 패턴`
-      case 'volume':
-        return `거래량 ${condition.volumePeriod}일 평균의 ${condition.volumeMultiplier}배`
-      case 'price_change':
-        return `전일 대비 ${condition.priceChangePercent}% ${condition.priceChangeDirection === 'up' ? '상승' : '하락'}`
-      default:
-        return '조건'
-    }
-  }
+  const renderSide = (conditions: SentenceCondition[], side: 'buy' | 'sell') => (
+    <div className="flex gap-4 items-start">
+      <span
+        className={`w-11 shrink-0 pt-1.5 font-mono text-[10px] tracking-[0.2em] ${
+          side === 'buy' ? 'text-up' : 'text-down'
+        }`}
+      >
+        {side === 'buy' ? 'BUY' : 'SELL'}
+      </span>
+      {conditions.length > 0 ? (
+        <div className="flex flex-col gap-2.5">
+          {conditions.map((condition, index) => (
+            <span key={condition.id} className="text-[15px] leading-[1.7] text-ink">
+              {index > 0 && (
+                <span className="font-mono text-[11px] tracking-[0.16em] text-muted pr-2">
+                  {conditions[index - 1].nextOperator || 'AND'}
+                </span>
+              )}
+              {formatCondition(condition)}
+            </span>
+          ))}
+        </div>
+      ) : (
+        <span className="pt-1 text-[15px] text-dim">조건 없음</span>
+      )}
+    </div>
+  )
 
   return (
-    <div className="flex items-center gap-6 h-full px-4">
-      {/* 매수 조건 */}
-      <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1 text-green-400 text-sm font-medium">
-          <Circle className="w-2.5 h-2.5 fill-green-400" />
-          매수:
-        </span>
-        {buyConditions.length > 0 ? (
-          <span className="text-white/80 text-sm">
-            {buyConditions.map((c, i) => (
-              <span key={c.id}>
-                {formatCondition(c)}
-                {i < buyConditions.length - 1 && (
-                  <span
-                    className={`mx-1 ${c.nextOperator === 'OR' ? 'text-orange-400' : 'text-purple-400'}`}
-                  >
-                    {c.nextOperator || 'AND'}
-                  </span>
-                )}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="text-white/40 text-sm">조건 없음</span>
-        )}
-      </div>
+    <div className="h-full overflow-y-auto px-6 py-5 flex flex-col gap-6">
+      {renderSide(buyConditions, 'buy')}
+      {renderSide(sellConditions, 'sell')}
 
-      {/* 구분선 */}
-      <div className="w-px h-6 bg-white/10" />
-
-      {/* 매도 조건 */}
-      <div className="flex items-center gap-2">
-        <span className="flex items-center gap-1 text-red-400 text-sm font-medium">
-          <Circle className="w-2.5 h-2.5 fill-red-400" />
-          매도:
-        </span>
-        {sellConditions.length > 0 ? (
-          <span className="text-white/80 text-sm">
-            {sellConditions.map((c, i) => (
-              <span key={c.id}>
-                {formatCondition(c)}
-                {i < sellConditions.length - 1 && (
-                  <span
-                    className={`mx-1 ${c.nextOperator === 'OR' ? 'text-orange-400' : 'text-purple-400'}`}
-                  >
-                    {c.nextOperator || 'AND'}
-                  </span>
-                )}
-              </span>
-            ))}
-          </span>
-        ) : (
-          <span className="text-white/40 text-sm">조건 없음</span>
-        )}
-      </div>
-
-      {/* 편집 버튼 */}
       <button
         onClick={onEdit}
-        className="ml-auto flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-purple-400 hover:text-purple-300 border border-purple-400/30 rounded-lg hover:bg-purple-400/10 transition-colors"
+        className="mt-auto self-start flex items-center gap-2 bg-accent text-accent-ink text-[13px] font-semibold px-5 py-2.5 hover:opacity-90 transition-opacity"
       >
-        <Pencil className="w-3 h-3" />
-        편집
+        <Pencil className="w-3.5 h-3.5" />
+        조건 편집
       </button>
     </div>
   )
@@ -1107,12 +1014,12 @@ export default function TabPanel({
 }: TabPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('summary')
 
-  const tabs: { id: TabId; label: string; icon: ReactNode }[] = [
-    { id: 'summary', label: '요약', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'equity', label: '수익곡선', icon: <TrendingUp className="w-4 h-4" /> },
-    { id: 'trades', label: '거래내역', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'strategy', label: '전략', icon: <Settings className="w-4 h-4" /> },
-    { id: 'ai-report', label: 'AI 리포트', icon: <Sparkles className="w-4 h-4" /> },
+  const tabs: { id: TabId; label: string }[] = [
+    { id: 'summary', label: '요약' },
+    { id: 'equity', label: '수익곡선' },
+    { id: 'trades', label: `거래내역${result ? ` ${result.totalTrades}` : ''}` },
+    { id: 'strategy', label: '전략' },
+    { id: 'ai-report', label: 'AI 리포트' },
   ]
 
   const renderContent = (): ReactNode => {
@@ -1146,15 +1053,14 @@ export default function TabPanel({
   }
 
   return (
-    <div className="bg-black/40 backdrop-blur-sm border-t border-white/10 flex flex-col h-full">
+    <div className="bg-panel border-t border-line flex flex-col h-full">
       {/* 탭 헤더 */}
-      <div className="flex items-center border-b border-white/5 px-2 flex-shrink-0">
+      <div className="flex items-center gap-1 border-b border-line px-4 flex-shrink-0">
         {tabs.map((tab) => (
           <TabButton
             key={tab.id}
             id={tab.id}
             label={tab.label}
-            icon={tab.icon}
             active={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id)}
           />

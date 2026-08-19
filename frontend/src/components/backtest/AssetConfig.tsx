@@ -88,24 +88,24 @@ export default function AssetConfig({
 
       <div className="space-y-5">
         {/* 섹션 헤더 */}
-        <h3 className="text-lg font-semibold text-white">자산 / 기간 설정</h3>
+        <h3 className="text-lg font-semibold text-strong">자산 / 기간 설정</h3>
 
         {/* 코인/페어 선택 (검색 버튼) */}
         <div className="space-y-2">
-          <label className="text-sm text-white/60">코인/페어</label>
+          <label className="text-sm text-muted">코인/페어</label>
           <button
             onClick={() => setIsAssetModalOpen(true)}
-            className="w-full flex items-center gap-3 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white hover:bg-white/10 transition-colors text-left"
+            className="w-full flex items-center gap-3 bg-raise border border-line px-4 py-3 text-strong hover:bg-raise transition-colors text-left"
           >
-            <Search className="w-5 h-5 text-white/60" />
+            <Search className="w-5 h-5 text-muted" />
             <span className="flex-1 font-medium">{asset}</span>
-            <span className="text-white/40 text-sm">클릭하여 검색</span>
+            <span className="text-dim text-sm">클릭하여 검색</span>
           </button>
         </div>
 
         {/* 백테스트 기간 - Mantine DatePickerInput 사용 */}
         <div className="space-y-2">
-          <label className="text-sm text-white/60">백테스트 기간</label>
+          <label className="text-sm text-muted">백테스트 기간</label>
           <div className="grid grid-cols-2 gap-3">
             <DatePickerInput
               value={startDateObj}
@@ -123,7 +123,7 @@ export default function AssetConfig({
                 style:
                   new Date(date).toDateString() === new Date().toDateString()
                     ? {
-                        backgroundColor: 'rgba(168, 85, 247, 0.3)',
+                        backgroundColor: 'var(--omc-wash)',
                         borderRadius: '8px',
                         fontWeight: 'bold',
                       }
@@ -131,11 +131,11 @@ export default function AssetConfig({
               })}
               styles={{
                 input: {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: 'white',
+                  backgroundColor: 'var(--omc-raise)',
+                  border: '1px solid var(--omc-line)',
+                  color: 'var(--omc-ink)',
                   '&:focus': {
-                    borderColor: '#A855F7',
+                    borderColor: 'var(--omc-accent)',
                   },
                 },
               }}
@@ -156,7 +156,7 @@ export default function AssetConfig({
                 style:
                   new Date(date).toDateString() === new Date().toDateString()
                     ? {
-                        backgroundColor: 'rgba(168, 85, 247, 0.3)',
+                        backgroundColor: 'var(--omc-wash)',
                         borderRadius: '8px',
                         fontWeight: 'bold',
                       }
@@ -164,11 +164,11 @@ export default function AssetConfig({
               })}
               styles={{
                 input: {
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
-                  color: 'white',
+                  backgroundColor: 'var(--omc-raise)',
+                  border: '1px solid var(--omc-line)',
+                  color: 'var(--omc-ink)',
                   '&:focus': {
-                    borderColor: '#A855F7',
+                    borderColor: 'var(--omc-accent)',
                   },
                 },
               }}
@@ -178,16 +178,16 @@ export default function AssetConfig({
 
         {/* 캔들 시간 간격 */}
         <div className="space-y-2">
-          <label className="text-sm text-white/60">캔들 시간 간격</label>
+          <label className="text-sm text-muted">캔들 시간 간격</label>
           <div className="grid grid-cols-3 gap-2">
             {(Object.keys(TIMEFRAME_LABELS) as TimeFrame[]).map((tf) => (
               <button
                 key={tf}
                 onClick={() => onTimeFrameChange(tf)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                className={`px-3 py-2 text-sm font-medium transition-all ${
                   timeFrame === tf
-                    ? 'bg-purple-500/20 text-white border border-purple-500'
-                    : 'bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10 border border-transparent'
+                    ? 'bg-wash text-strong border border-accent'
+                    : 'bg-raise text-dim hover:text-muted hover:bg-raise border border-transparent'
                 }`}
               >
                 {TIMEFRAME_LABELS[tf]}
@@ -198,14 +198,14 @@ export default function AssetConfig({
 
         {/* 초기 자본금 */}
         <div className="space-y-2">
-          <label className="text-sm text-white/60">초기 자본금 (USDT)</label>
+          <label className="text-sm text-muted">초기 자본금 (USDT)</label>
           <input
             type="number"
             value={initialCapital}
             onChange={(e) => onInitialCapitalChange(Number(e.target.value))}
             min={100}
             step={100}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white focus:border-white/30 focus:outline-none transition-colors"
+            className="w-full bg-raise border border-line px-4 py-3 text-strong focus:border-line focus:outline-none transition-colors"
             placeholder="1000000"
           />
         </div>
