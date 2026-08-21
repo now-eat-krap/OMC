@@ -1,9 +1,11 @@
 /* =============================================================================
-   OMC 디자인 시스템 — 터미널 방향
+   OMC 디자인 시스템 — 딥 그린
    =============================================================================
    - 한글/UI: Pretendard, 숫자/라벨: IBM Plex Mono
    - 색은 전부 CSS 변수로 두고 :root(다크)와 [data-theme="light"]에서 값만 교체
    - Tailwind v4 @theme으로 유틸리티(bg-canvas, text-ink ...)에 연결
+   - 밝은 배경에서는 민트가 대비를 못 내므로 라이트 모드의 액센트는 같은 계열의
+     짙은 초록으로 내린다
    ========================================================================== */
 
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css');
@@ -15,22 +17,24 @@
    팔레트 — 다크(기본)
    -------------------------------------------------------------------------- */
 :root {
-  --omc-bg: #070809; /* 화면 바닥 */
-  --omc-panel: #0c0e10; /* 패널 */
-  --omc-raise: #13171a; /* 세그먼트 컨트롤 등 살짝 뜬 면 */
-  --omc-line: #242b2f; /* 구획선 */
-  --omc-hair: #161a1d; /* 행 구분선 */
-  --omc-ink: #edf0ee; /* 본문 */
-  --omc-muted: #8a9490; /* 보조 텍스트 */
-  --omc-dim: #57625e; /* 흐린 텍스트 */
+  --omc-bg: #0f1a16; /* 화면 바닥 */
+  --omc-panel: #16241e; /* 패널 */
+  --omc-raise: #1b2f27; /* 살짝 뜬 면 */
+  --omc-line: #274036; /* 구획선 */
+  --omc-hair: #1b2c24; /* 행 구분선 */
+  --omc-ink: #e8e6de; /* 본문 */
+  --omc-muted: #9aaaa1; /* 보조 텍스트 */
+  --omc-dim: #6a7d74; /* 흐린 텍스트 */
   --omc-strong: #ffffff; /* 제목/강조 */
-  --omc-accent: #ffb020; /* 액센트 — 주요 버튼과 활성 상태에만 */
-  --omc-accent-ink: #070809; /* 액센트 위 글자색 */
-  --omc-wash: rgba(255, 176, 32, 0.09); /* 액센트 배경 */
-  --omc-up: #35d08a; /* 수익 */
-  --omc-down: #ff5a46; /* 손실 */
-  --omc-wick: #4a5450; /* 캔들 심지 */
-  --omc-scrim: rgba(0, 0, 0, 0.66); /* 모달 뒤를 덮는 막 */
+  --omc-accent: #7fd1a8; /* 액센트 */
+  --omc-accent-ink: #0f1a16; /* 액센트 위 글자색 */
+  --omc-wash: rgba(127, 209, 168, 0.1); /* 액센트 배경 */
+  --omc-up: #7fd1a8; /* 수익 */
+  --omc-down: #e0715b; /* 손실 */
+  --omc-wick: #3f5a4f; /* 캔들 심지 */
+  --omc-scrim: rgba(4, 10, 8, 0.72); /* 모달 뒤를 덮는 막 */
+  --omc-glow: rgba(127, 209, 168, 0.12); /* 배경 글로우 */
+  --omc-grain: 0.055; /* 필름 그레인 세기 */
 
   color-scheme: dark;
 }
@@ -39,28 +43,30 @@
    팔레트 — 라이트
    -------------------------------------------------------------------------- */
 [data-theme='light'] {
-  --omc-bg: #f7f5f0;
+  --omc-bg: #f0f2ee;
   --omc-panel: #ffffff;
-  --omc-raise: #efece4;
-  --omc-line: #dcd7ca;
-  --omc-hair: #eae6dc;
-  --omc-ink: #14171a;
-  --omc-muted: #5f6a66;
-  --omc-dim: #9aa29c;
-  --omc-strong: #000000;
-  --omc-accent: #b37400;
+  --omc-raise: #e7ebe6;
+  --omc-line: #d7ddd6;
+  --omc-hair: #e4e9e3;
+  --omc-ink: #10201a;
+  --omc-muted: #4f6058;
+  --omc-dim: #62736a;
+  --omc-strong: #041009;
+  --omc-accent: #1f6b4a;
   --omc-accent-ink: #ffffff;
-  --omc-wash: rgba(179, 116, 0, 0.08);
-  --omc-up: #0e8c5b;
-  --omc-down: #d33b28;
-  --omc-wick: #9aa29c;
-  --omc-scrim: rgba(20, 23, 26, 0.42);
+  --omc-wash: rgba(31, 107, 74, 0.08);
+  --omc-up: #1f6b4a;
+  --omc-down: #c0533c;
+  --omc-wick: #c3ccc4;
+  --omc-scrim: rgba(16, 32, 26, 0.42);
+  --omc-glow: rgba(31, 107, 74, 0.09);
+  --omc-grain: 0.03;
 
   color-scheme: light;
 }
 
 /* -----------------------------------------------------------------------------
-   Tailwind 토큰 연결 — bg-canvas, text-ink, border-line, font-mono ...
+   Tailwind 토큰 연결 — bg-canvas, text-ink, border-line, rounded-tray ...
    -------------------------------------------------------------------------- */
 @theme {
   --color-canvas: var(--omc-bg);
@@ -79,6 +85,12 @@
   --color-up: var(--omc-up);
   --color-down: var(--omc-down);
 
+  /* 모서리 — 바깥 트레이와 안쪽 코어가 동심원을 이루도록 짝을 맞춘다 */
+  --radius-tray: 30px;
+  --radius-core: 21px;
+  --radius-card: 16px;
+  --radius-chip: 10px;
+
   --font-sans:
     'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, system-ui,
     'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
@@ -90,7 +102,6 @@
    -----------------------------------------------------------------------------
    반드시 @layer base 안에 둔다. 레이어 밖에 두면 Tailwind의 유틸리티(@layer
    utilities)보다 우선해서, 예컨대 a 태그의 색이 text-* 유틸리티를 덮어쓴다.
-   (버튼으로 쓰는 <Link>의 글자가 배경과 같은 색이 되어 안 보이던 원인)
    -------------------------------------------------------------------------- */
 @layer base {
   html,
@@ -131,13 +142,94 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* 대문자 마이크로 라벨 (SUMMARY, TOTAL RETURN ...) */
+  /* 대문자 마이크로 라벨 */
   .label {
     font-family: var(--font-mono);
     font-size: 10px;
     letter-spacing: 0.2em;
     text-transform: uppercase;
     color: var(--omc-muted);
+  }
+
+  /* 이중 베젤 — 바깥 트레이 안에 안쪽 코어를 앉힌다 */
+  .tray {
+    background: color-mix(in srgb, var(--omc-ink) 4%, transparent);
+    border: 1px solid color-mix(in srgb, var(--omc-ink) 8%, transparent);
+    border-radius: var(--radius-tray);
+    padding: 10px;
+  }
+
+  .core {
+    border-radius: var(--radius-core);
+    overflow: hidden;
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--omc-strong) 12%, transparent),
+      0 24px 50px -34px rgba(0, 0, 0, 0.45);
+  }
+
+  /* 필름 그레인 — 고정 레이어에만 올린다 (스크롤 컨테이너에 얹으면 GPU가 계속 다시 그린다) */
+  .grain {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    opacity: var(--omc-grain);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* 알약형 CTA — 화살표는 자체 원 안에 들어간다 */
+  .cta-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    border-radius: 999px;
+    padding: 10px 12px 10px 28px;
+    font-size: 16px;
+    font-weight: 600;
+    transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .cta-pill:hover {
+    transform: translateY(-1px);
+  }
+
+  .cta-pill:active {
+    transform: scale(0.985);
+  }
+
+  .cta-dot {
+    width: 38px;
+    height: 38px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 700ms cubic-bezier(0.32, 0.72, 0, 1);
+  }
+
+  .cta-pill:hover .cta-dot {
+    transform: translate(3px, -2px) scale(1.06);
+  }
+}
+
+@layer utilities {
+  /* 스크롤 진입 애니메이션 (움직임을 끈 사용자에게는 적용하지 않는다) */
+  @media (prefers-reduced-motion: no-preference) {
+    .rise {
+      animation: rise 900ms cubic-bezier(0.32, 0.72, 0, 1) both;
+      animation-timeline: view();
+      animation-range: entry 0% entry 55%;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(28px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
 }
 

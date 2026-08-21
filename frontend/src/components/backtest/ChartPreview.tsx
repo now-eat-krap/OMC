@@ -37,7 +37,7 @@ const ChartPreview = forwardRef<BacktestChartHandle, ChartPreviewProps>(
     // 실시간 모드: TradingView 위젯 표시
     if (mode === 'live') {
       return (
-        <div className="bg-panel border border-line h-full overflow-hidden">
+        <div className="bg-panel border border-line rounded-card h-full overflow-hidden">
           <TradingViewWidget symbol={asset} interval={timeFrame} />
         </div>
       )
@@ -45,7 +45,7 @@ const ChartPreview = forwardRef<BacktestChartHandle, ChartPreviewProps>(
 
     // 백테스트 모드: Lightweight Charts 또는 플레이스홀더
     return (
-      <div className="bg-panel border border-line p-4 h-full flex flex-col">
+      <div className="bg-panel border border-line rounded-card p-4 h-full flex flex-col">
         {/* 차트 헤더 */}
         <div className="flex items-center justify-between mb-4 flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -71,7 +71,7 @@ const ChartPreview = forwardRef<BacktestChartHandle, ChartPreviewProps>(
         </div>
 
         {/* 차트 영역 */}
-        <div className="flex-1 bg-panel border border-hair overflow-hidden">
+        <div className="flex-1 bg-canvas border border-hair rounded-chip overflow-hidden">
           {ohlcv.length > 0 ? (
             <BacktestChart
               ref={ref}
