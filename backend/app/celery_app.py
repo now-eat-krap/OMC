@@ -62,3 +62,26 @@ celery_app.conf.update(
     worker_prefetch_multiplier=1,  # 한 번에 하나씩 가져오기
     worker_concurrency=2,  # 동시 작업 수
 )
+
+
+# =============================================================================
+# Numba JIT 워밍업 (Celery 워커)
+# =============================================================================
+# 백테스트는 FastAPI가 아닌 Celery 워커 프로세스에서 실행되므로
+# 워커에도 별도 워밍업이 필요합니다.
+# worker_init은 prefork로 자식 프로세스를 만들기 전 부모에서 실행되므로,
+# 여기서 컴파일하면 모든 자식 워커가 컴파일된 코드를 상속받습니다.
+# (자식마다 따로 워밍업하면 concurrency 수만큼 중복 컴파일 발생)
+from celery.signals import worker_init  # noqa: E402
+
+
+@worker_init.connect
+def warmup_numba_on_worker_start(**kwargs):
+    import asyncio
+    import logging
+
+    from app.services.scheduler import warmup_numba_jit
+
+    logger = logging.getLogger(__name__)
+    logger.info("Celery 워커 Numba JIT 워밍업 시작 (prefork 이전)...")
+    asyncio.run(warmup_numba_jit())
