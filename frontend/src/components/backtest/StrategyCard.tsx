@@ -49,25 +49,23 @@ export default function StrategyCard({
   return (
     <div
       onClick={onEdit}
-      className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-5 cursor-pointer hover:bg-white/10 hover:border-white/20 transition-all group"
+      className="bg-raise backdrop-blur-sm border border-line p-5 cursor-pointer hover:bg-raise hover:border-line transition-all group"
     >
       {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-sm font-semibold text-white/60">📊 전략</h3>
-        <span className="text-xs text-white/40 group-hover:text-white transition-colors">
+        <h3 className="text-sm font-semibold text-muted">📊 전략</h3>
+        <span className="text-xs text-dim group-hover:text-strong transition-colors">
           클릭하여 수정 →
         </span>
       </div>
 
       {/* 자산 & 시간 간격 */}
       <div className="flex items-center gap-2 mb-3">
-        <span className="px-2 py-1 rounded bg-white/10 text-white text-sm font-medium">
-          {asset}
-        </span>
-        <span className="px-2 py-1 rounded bg-white/10 text-white text-xs">
+        <span className="px-2 py-1 rounded bg-raise text-strong text-sm font-medium">{asset}</span>
+        <span className="px-2 py-1 rounded bg-raise text-strong text-xs">
           {TIMEFRAME_LABELS[timeFrame]}
         </span>
-        <span className="px-2 py-1 rounded bg-white/5 text-white/60 text-xs">
+        <span className="px-2 py-1 rounded bg-raise text-muted text-xs">
           ${initialCapital.toLocaleString()}
         </span>
       </div>
@@ -77,19 +75,15 @@ export default function StrategyCard({
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-xs">🟢</span>
-            <span className="text-xs text-white/80 truncate">
-              {summarizeConditions(buyConditions)}
-            </span>
+            <span className="text-xs text-ink truncate">{summarizeConditions(buyConditions)}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs">🔴</span>
-            <span className="text-xs text-white/80 truncate">
-              {summarizeConditions(sellConditions)}
-            </span>
+            <span className="text-xs text-ink truncate">{summarizeConditions(sellConditions)}</span>
           </div>
         </div>
       ) : (
-        <p className="text-xs text-white/40">조건을 설정해주세요</p>
+        <p className="text-xs text-dim">조건을 설정해주세요</p>
       )}
     </div>
   )

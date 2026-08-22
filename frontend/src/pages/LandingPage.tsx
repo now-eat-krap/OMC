@@ -1,512 +1,238 @@
-// 랜딩 페이지 (메인 페이지)
-// 프리미엄 미래적 디자인, Hyperspeed 배경, Scroll Snap 섹션
-import { useRef, useEffect, useCallback, useState } from 'react'
-import Hyperspeed from '../components/effects/Hyperspeed'
-import ElectricBorder from '../components/effects/ElectricBorder'
-import StarBorder from '../components/effects/StarBorder'
-import AnimatedContent from '../components/effects/AnimatedContent'
-import Navbar from '../components/layout/Navbar'
+// 랜딩 페이지 — 딥 그린
+// 구성: 히어로 → 제품 화면 → 조건 문장 → 결과 지표 → 한계 → CTA
+import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import Navbar from '../components/layout/Navbar'
+import HeroDemo from '../components/landing/HeroDemo'
 
-// 전체 섹션 수
-const TOTAL_SECTIONS = 4
+// ---------------------------------------------------------------------------
+// 조각들
+// ---------------------------------------------------------------------------
+
+/** 화살표가 자체 원 안에 들어가는 알약형 CTA */
+function CtaPill({ to, children }: { to: string; children: string }) {
+  return (
+    <Link to={to} className="cta-pill bg-accent text-accent-ink">
+      {children}
+      <span className="cta-dot bg-accent-ink/15">
+        <svg
+          width="14"
+          height="12"
+          viewBox="0 0 14 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.4}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M1 6h11M7.5 1.5L12 6l-4.5 4.5" />
+        </svg>
+      </span>
+    </Link>
+  )
+}
+
+/** 바깥 트레이 + 안쪽 코어 (이중 베젤) */
+function Tray({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={`tray ${className}`}>
+      <div className="core h-full bg-panel">{children}</div>
+    </div>
+  )
+}
+
+/** 조건 문장 한 줄 */
+function ConditionRow({ side, children }: { side: 'buy' | 'sell'; children: ReactNode }) {
+  return (
+    <Tray>
+      <div className="flex items-center gap-5 px-7 py-8 md:px-9">
+        <span
+          className={`w-11 shrink-0 font-mono text-[11.5px] font-semibold tracking-[0.14em] ${
+            side === 'buy' ? 'text-up' : 'text-down'
+          }`}
+        >
+          {side === 'buy' ? '매수' : '매도'}
+        </span>
+        <span className="text-lg font-extralight leading-[1.7] text-ink md:text-xl">
+          {children}
+        </span>
+      </div>
+    </Tray>
+  )
+}
+
+/** 결과 지표 한 칸 */
+function Metric({
+  label,
+  value,
+  sub,
+  tone = 'text-ink',
+}: {
+  label: string
+  value: string
+  sub: string
+  tone?: string
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <span className="text-[13.5px] font-light text-muted">{label}</span>
+      <span
+        className={`tnum text-[44px] font-bold leading-none tracking-[-0.05em] md:text-[56px] ${tone}`}
+      >
+        {value}
+      </span>
+      <span className="h-px bg-line" />
+      <span className="text-xs font-light text-dim">{sub}</span>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 
 export default function LandingPage() {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const [currentSection, setCurrentSection] = useState(0)
-  const isScrolling = useRef(false)
-
-  // 특정 섹션으로 즉시 스크롤
-  const scrollToSection = useCallback(
-    (sectionIndex: number) => {
-      if (!containerRef.current || isScrolling.current) {
-        return
-      }
-
-      const clampedIndex = Math.max(0, Math.min(sectionIndex, TOTAL_SECTIONS - 1))
-      if (clampedIndex === currentSection) {
-        return
-      }
-
-      isScrolling.current = true
-      setCurrentSection(clampedIndex)
-
-      const sectionHeight = window.innerHeight
-      containerRef.current.scrollTo({
-        top: clampedIndex * sectionHeight,
-        behavior: 'smooth',
-      })
-
-      // 스크롤 완료 후 다시 스크롤 허용 (딜레이)
-      setTimeout(() => {
-        isScrolling.current = false
-      }, 800)
-    },
-    [currentSection]
-  )
-
-  // wheel 이벤트로 섹션 전환
-  useEffect(() => {
-    const container = containerRef.current
-    if (!container) {
-      return
-    }
-
-    const handleWheel = (e: WheelEvent) => {
-      e.preventDefault()
-
-      if (isScrolling.current) {
-        return
-      }
-
-      if (e.deltaY > 0) {
-        // 아래로 스크롤
-        scrollToSection(currentSection + 1)
-      } else if (e.deltaY < 0) {
-        // 위로 스크롤
-        scrollToSection(currentSection - 1)
-      }
-    }
-
-    container.addEventListener('wheel', handleWheel, { passive: false })
-
-    return () => {
-      container.removeEventListener('wheel', handleWheel)
-    }
-  }, [currentSection, scrollToSection])
-
   return (
-    <div
-      id="snap-main-container"
-      ref={containerRef}
-      className="h-screen overflow-y-auto"
-      style={{ scrollBehavior: 'smooth' }}
-    >
-      {/* 네비게이션 바 - 고정 */}
-      <Navbar />
+    <div className="relative min-h-full overflow-hidden bg-canvas text-ink">
+      {/* 배경 글로우와 그레인 */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-[-340px] h-[900px] w-[1040px] -translate-x-1/2 rounded-full"
+        style={{ background: 'radial-gradient(circle, var(--omc-glow), transparent 60%)' }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute right-[-300px] top-[1720px] h-[760px] w-[760px] rounded-full"
+        style={{ background: 'radial-gradient(circle, var(--omc-glow), transparent 62%)' }}
+      />
+      <div aria-hidden className="grain" />
 
-      {/* ===== 섹션 1: 히어로 ===== */}
-      <section className="relative w-full h-screen snap-start snap-always bg-black text-white">
-        {/* Hyperspeed 배경 */}
-        <div className="absolute inset-0 z-0">
-          <Hyperspeed
-            effectOptions={{
-              distortion: 'turbulentDistortion',
-              length: 400,
-              roadWidth: 10,
-              islandWidth: 2,
-              lanesPerRoad: 4,
-              fov: 90,
-              fovSpeedUp: 150,
-              speedUp: 2,
-              carLightsFade: 0.4,
-              totalSideLightSticks: 20,
-              lightPairsPerRoadWay: 40,
-              shoulderLinesWidthPercentage: 0.05,
-              brokenLinesWidthPercentage: 0.1,
-              brokenLinesLengthPercentage: 0.5,
-              lightStickWidth: [0.12, 0.5],
-              lightStickHeight: [1.3, 1.7],
-              movingAwaySpeed: [60, 80],
-              movingCloserSpeed: [-120, -160],
-              carLightsLength: [400 * 0.03, 400 * 0.2],
-              carLightsRadius: [0.05, 0.14],
-              carWidthPercentage: [0.3, 0.5],
-              carShiftX: [-0.8, 0.8],
-              carFloorSeparation: [0, 5],
-              colors: {
-                roadColor: 0x080808,
-                islandColor: 0x0a0a0a,
-                background: 0x0a0a0f,
-                shoulderLines: 0xffffff,
-                brokenLines: 0xffffff,
-                leftCars: [0xa855f7, 0x7c3aed, 0xc084fc],
-                rightCars: [0x06b6d4, 0x0891b2, 0x22d3ee],
-                sticks: 0xa855f7,
-              },
-            }}
-          />
-        </div>
+      <div className="relative">
+        <Navbar />
 
-        {/* 그라데이션 오버레이 */}
-        <div className="absolute inset-0 pointer-events-none z-[5]">
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/70"></div>
-          <div className="absolute inset-0 bg-gradient-to-r from-black/30 via-transparent to-black/30"></div>
-        </div>
-
-        {/* 히어로 콘텐츠 */}
-        <div className="relative z-10 flex flex-col items-center justify-center h-full px-6">
-          <div className="text-center max-w-5xl mx-auto">
-            {/* 서브 타이틀 */}
-            <AnimatedContent
-              distance={50}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.2}
-              threshold={0.1}
-            >
-              <div className="mb-6 inline-flex items-center gap-2 px-4 py-2 rounded-full border border-purple-500/30 bg-purple-500/10 backdrop-blur-sm">
-                <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
-                <span className="text-sm text-purple-300 font-medium tracking-wide">
-                  AI 기반 전략 분석 플랫폼
-                </span>
-              </div>
-            </AnimatedContent>
-
-            {/* 메인 타이틀 */}
-            <AnimatedContent
-              distance={80}
-              direction="vertical"
-              reverse={false}
-              duration={1}
-              delay={0.4}
-              threshold={0.1}
-            >
-              <h1 className="text-5xl sm:text-6xl md:text-8xl font-black tracking-tight leading-none mb-8">
-                <span className="block text-white drop-shadow-[0_0_30px_rgba(255,255,255,0.3)]">
-                  YOUR STRATEGY
-                </span>
-                <span className="block mt-2 bg-gradient-to-r from-purple-400 via-violet-500 to-cyan-400 bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(168,85,247,0.4)]">
-                  VERIFIED
-                </span>
-              </h1>
-            </AnimatedContent>
-
-            {/* 설명 */}
-            <AnimatedContent
-              distance={60}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.6}
-              threshold={0.1}
-            >
-              <p className="text-lg md:text-xl text-gray-400 max-w-2xl mx-auto mb-12 leading-relaxed font-light">
-                과거 데이터로 검증된 전략만이 미래의 수익을 보장합니다.
-                <br className="hidden sm:block" />
-                <span className="text-white/80">실시간 백테스팅</span>으로 당신의 트레이딩을
-                혁신하세요.
-              </p>
-            </AnimatedContent>
-
-            {/* CTA 버튼 */}
-            <AnimatedContent
-              distance={40}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.8}
-              threshold={0.1}
-            >
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                <StarBorder
-                  as={Link}
-                  to="/backtest"
-                  color="#A855F7"
-                  speed="4s"
-                  thickness={5}
-                  className="w-full sm:w-auto"
-                >
-                  <span className="flex items-center justify-center gap-2 font-bold text-lg">
-                    백테스팅 시작
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 7l5 5m0 0l-5 5m5-5H6"
-                      />
-                    </svg>
-                  </span>
-                </StarBorder>
-              </div>
-            </AnimatedContent>
+        {/* ===== 히어로 ===== */}
+        <section className="flex flex-col items-center gap-8 px-6 pt-24 text-center md:px-20 md:pt-36">
+          <span className="rounded-full border border-line px-4 py-1.5 font-mono text-[10.5px] font-medium tracking-[0.24em] text-muted">
+            BACKTESTING
+          </span>
+          <h1 className="max-w-[940px] text-[42px] font-bold leading-[1.16] tracking-[-0.05em] text-strong md:text-[68px] lg:text-[86px]">
+            이 규칙으로 샀다면
+            <br />
+            지금 얼마였을까
+          </h1>
+          <p className="max-w-[560px] text-base font-extralight leading-[1.95] text-muted md:text-lg">
+            매수와 매도 규칙을 문장으로 적으면 상장일부터의 데이터로 그대로 사고팔아 결과를
+            계산합니다.
+          </p>
+          <div className="pt-2">
+            <CtaPill to="/backtest">백테스트 시작</CtaPill>
           </div>
+        </section>
 
-          {/* 스크롤 인디케이터 */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
-            <div className="w-6 h-10 rounded-full border-2 border-white/30 flex items-start justify-center p-2">
-              <div className="w-1 h-2 bg-white/50 rounded-full"></div>
+        {/* ===== 제품 화면 (실제 컴포넌트로 만든 축소 데모) ===== */}
+        <section className="px-6 pb-24 pt-16 md:px-20 md:pb-36 md:pt-24">
+          <Tray className="rise">
+            <div className="h-[430px] md:h-[560px]">
+              <HeroDemo />
             </div>
-          </div>
-        </div>
-      </section>
+          </Tray>
+        </section>
 
-      {/* ===== 섹션 2: 기능 소개 ===== */}
-      <section className="relative w-full h-screen snap-start snap-always bg-[#0A0A0F] text-white flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-6">
-          <AnimatedContent
-            distance={60}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            threshold={0.3}
-          >
-            <div className="text-center mb-16">
-              <h2 className="text-4xl md:text-6xl font-bold mb-4">
-                <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                  왜 OMC인가?
-                </span>
+        {/* ===== 조건 문장 ===== */}
+        <section className="grid grid-cols-1 gap-6 px-6 pb-24 md:grid-cols-12 md:px-20 md:pb-36">
+          <Tray className="rise md:col-span-5">
+            <div className="flex h-full flex-col gap-6 px-9 py-12">
+              <h2 className="text-[28px] font-bold leading-[1.4] tracking-[-0.035em] text-strong md:text-[34px]">
+                코드 대신
+                <br />
+                문장으로 씁니다
               </h2>
-              <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-                복잡한 코딩 없이, 누구나 쉽게 전략을 검증하세요
+              <p className="text-[15.5px] font-extralight leading-[2] text-muted">
+                매수와 매도를 따로 세우고 AND와 OR로 엮습니다. 조건을 바꾸면 신호 개수가 어떻게
+                달라지는지 실행 전에 보여줍니다.
               </p>
             </div>
-          </AnimatedContent>
+          </Tray>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* 기능 1: 노코드 */}
-            <AnimatedContent
-              distance={80}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.1}
-              threshold={0.3}
-              className="h-full"
-            >
-              <ElectricBorder
-                color="#A855F7"
-                speed={1}
-                chaos={0.5}
-                thickness={2}
-                style={{ borderRadius: 16, height: '100%' }}
-                className="h-full"
-              >
-                <div className="p-8 h-full flex flex-col">
-                  <div className="w-14 h-14 rounded-xl bg-purple-500/20 flex items-center justify-center mb-6">
-                    <svg
-                      className="w-7 h-7 text-purple-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 text-white">코딩 없이 클릭만으로</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
-                    복잡한 프로그래밍 지식이 필요 없습니다. 직관적인 UI로 전략을 설정하고 바로
-                    테스트하세요.
-                  </p>
-                </div>
-              </ElectricBorder>
-            </AnimatedContent>
-
-            {/* 기능 2: AI */}
-            <AnimatedContent
-              distance={80}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.2}
-              threshold={0.3}
-              className="h-full"
-            >
-              <ElectricBorder
-                color="#06B6D4"
-                speed={1.0}
-                chaos={0.5}
-                thickness={2}
-                style={{ borderRadius: 16, height: '100%' }}
-                className="h-full"
-              >
-                <div className="p-8 h-full flex flex-col">
-                  <div className="w-14 h-14 rounded-xl bg-cyan-500/20 flex items-center justify-center mb-6">
-                    <svg
-                      className="w-7 h-7 text-cyan-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 text-white">
-                    AI 전략 추천
-                    <span className="ml-2 px-2 py-0.5 text-xs bg-cyan-500/20 text-cyan-400 rounded-full">
-                      Coming Soon
-                    </span>
-                  </h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
-                    AI가 과거 데이터를 분석하여 최적의 전략 파라미터를 추천해드립니다.
-                  </p>
-                </div>
-              </ElectricBorder>
-            </AnimatedContent>
-
-            {/* 기능 3: 무료 */}
-            <AnimatedContent
-              distance={80}
-              direction="vertical"
-              reverse={false}
-              duration={0.8}
-              delay={0.3}
-              threshold={0.3}
-              className="h-full"
-            >
-              <ElectricBorder
-                color="#7C3AED"
-                speed={0.8}
-                chaos={0.4}
-                thickness={2}
-                style={{ borderRadius: 16, height: '100%' }}
-                className="h-full"
-              >
-                <div className="p-8 h-full flex flex-col">
-                  <div className="w-14 h-14 rounded-xl bg-violet-500/20 flex items-center justify-center mb-6">
-                    <svg
-                      className="w-7 h-7 text-violet-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3 text-white">완전 무료</h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
-                    모든 기능을 무료로 제공합니다. 숨겨진 비용이나 제한 없이 마음껏 사용하세요.
-                  </p>
-                </div>
-              </ElectricBorder>
-            </AnimatedContent>
-          </div>
-        </div>
-      </section>
-
-      {/* ===== 섹션 3: 통계 ===== */}
-      <section className="relative w-full h-screen snap-start snap-always bg-gradient-to-b from-[#0A0A0F] to-[#1a0a2e] text-white flex items-center justify-center">
-        <div className="max-w-6xl mx-auto px-6 text-center">
-          <AnimatedContent
-            distance={60}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            threshold={0.3}
-          >
-            <h2 className="text-4xl md:text-6xl font-bold mb-4">
-              <span className="text-white">숫자로 보는 </span>
-              <span className="bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                OMC
-              </span>
-            </h2>
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto mb-16">
-              수천 명의 트레이더가 이미 OMC를 신뢰합니다
-            </p>
-          </AnimatedContent>
-
-          <AnimatedContent
-            distance={80}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            delay={0.2}
-            threshold={0.3}
-          >
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-              <div className="p-8">
-                <div className="text-5xl md:text-6xl font-black text-white mb-2">10K+</div>
-                <div className="text-purple-400 uppercase tracking-wider text-sm">
-                  백테스트 완료
-                </div>
-              </div>
-              <div className="p-8">
-                <div className="text-5xl md:text-6xl font-black text-white mb-2">99.9%</div>
-                <div className="text-purple-400 uppercase tracking-wider text-sm">정확도</div>
-              </div>
-              <div className="p-8">
-                <div className="text-5xl md:text-6xl font-black text-white mb-2">&lt;1s</div>
-                <div className="text-purple-400 uppercase tracking-wider text-sm">분석 속도</div>
-              </div>
-              <div className="p-8">
-                <div className="text-5xl md:text-6xl font-black text-white mb-2">24/7</div>
-                <div className="text-purple-400 uppercase tracking-wider text-sm">서비스 운영</div>
-              </div>
-            </div>
-          </AnimatedContent>
-
-          {/* CTA */}
-          <AnimatedContent
-            distance={40}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            delay={0.4}
-            threshold={0.3}
-          >
-            <div className="mt-16">
-              <StarBorder as={Link} to="/backtest" color="#A855F7" speed="4s" thickness={3}>
-                <span className="flex items-center gap-2 font-bold text-xl">
-                  지금 시작하기
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M13 7l5 5m0 0l-5 5m5-5H6"
-                    />
-                  </svg>
+          <div className="flex flex-col gap-6 md:col-span-7">
+            <ConditionRow side="buy">
+              RSI(14)가 <span className="font-normal text-accent">30</span> 아래로 내려가고, 종가가{' '}
+              <span className="font-normal text-accent">MA(60)</span> 위에 있으면
+            </ConditionRow>
+            <ConditionRow side="sell">
+              수익률이 <span className="font-normal text-accent">5%</span>를 넘거나, RSI(14)가{' '}
+              <span className="font-normal text-accent">70</span>을 넘으면
+            </ConditionRow>
+            <Tray className="flex-1">
+              <div className="flex h-full items-center justify-between gap-6 px-9 py-8">
+                <p className="max-w-[300px] text-sm font-extralight leading-[1.9] text-muted">
+                  조건을 바꾸면 최근 6개월 신호 개수가 함께 움직입니다.
+                </p>
+                <span className="tnum text-[52px] font-bold leading-none tracking-[-0.05em] text-accent">
+                  14
                 </span>
-              </StarBorder>
-            </div>
-          </AnimatedContent>
-        </div>
-      </section>
+              </div>
+            </Tray>
+          </div>
+        </section>
 
-      {/* ===== 섹션 4: Footer ===== */}
-      <section className="relative w-full h-screen snap-start snap-always bg-[#0A0A0F] text-white flex flex-col items-center justify-center">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <AnimatedContent
-            distance={60}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            threshold={0.3}
-          >
-            <h2 className="text-3xl md:text-5xl font-bold mb-6">
-              당신의 전략, 지금 바로 검증하세요
+        {/* ===== 결과 지표 ===== */}
+        <section className="px-6 pb-24 md:px-20 md:pb-36">
+          <div className="flex items-baseline justify-between gap-6 pb-12 md:pb-16">
+            <h2 className="text-[32px] font-bold tracking-[-0.04em] text-strong md:text-[44px]">
+              실행하면 남는 것
             </h2>
-            <p className="text-gray-400 text-lg mb-12">
-              무료로 시작하고, 성공적인 트레이딩을 경험하세요.
-            </p>
-          </AnimatedContent>
+            <span className="shrink-0 text-[13px] font-light text-dim">예시 데이터입니다</span>
+          </div>
+          <div className="grid grid-cols-2 gap-8 md:grid-cols-4 md:gap-6">
+            <Metric label="총 수익률" value="+42.8%" sub="428,140 USDT" tone="text-up" />
+            <Metric label="승률" value="61.2%" sub="78승 50패" />
+            <Metric label="최대 낙폭" value="-18.4%" sub="2025년 3월" tone="text-down" />
+            <Metric label="단순 보유와 차이" value="+11.3" sub="퍼센트포인트" />
+          </div>
+        </section>
 
-          <AnimatedContent
-            distance={40}
-            direction="vertical"
-            reverse={false}
-            duration={0.8}
-            delay={0.2}
-            threshold={0.3}
-          >
-            <StarBorder as={Link} to="/backtest" color="#ffffff" speed="4s" thickness={3}>
-              <span className="font-bold text-xl">무료로 시작하기</span>
-            </StarBorder>
-          </AnimatedContent>
-        </div>
+        {/* ===== 한계 ===== */}
+        <section className="flex flex-col items-center gap-10 px-6 pb-24 text-center md:px-20 md:pb-36">
+          <h2 className="max-w-[780px] text-[28px] font-bold leading-[1.45] tracking-[-0.04em] text-strong md:text-[40px]">
+            과거에 맞았다는 사실이 앞으로도 맞는다는 뜻은 아닙니다
+          </h2>
+          <p className="max-w-[640px] text-base font-extralight leading-[2.1] text-muted md:text-[16.5px]">
+            기준값을 조금씩 바꿔 과거 수익률만 끌어올린 전략은 대개 다음 달에 무너집니다. 신호가
+            잦으면 수수료만으로 수익이 사라지고, 상승장만 담긴 기간에서는 거의 모든 전략이 좋아
+            보입니다. 그래서 결과 옆에 그냥 사서 들고 있었을 때의 값을 항상 같이 놓습니다.
+          </p>
+        </section>
 
-        {/* Footer */}
-        <div className="absolute bottom-8 left-0 right-0 text-center text-gray-500 text-sm">
-          © 2024 One More Coin. All rights reserved.
-        </div>
-      </section>
+        {/* ===== CTA ===== */}
+        <section className="px-6 pb-20 md:px-20 md:pb-28">
+          <Tray>
+            <div className="flex flex-col items-center gap-8 px-8 py-20 md:px-16 md:py-28">
+              <h2 className="text-center text-[34px] font-bold leading-[1.2] tracking-[-0.045em] text-strong md:text-[52px]">
+                머릿속 규칙 하나면
+                <br />
+                충분합니다
+              </h2>
+              <p className="text-center text-base font-extralight text-muted">
+                종목과 조건을 고르고 실행하면 결과는 1초 안에 나옵니다.
+              </p>
+              <CtaPill to="/backtest">백테스트 시작</CtaPill>
+            </div>
+          </Tray>
+        </section>
+
+        {/* ===== 푸터 ===== */}
+        <footer className="flex flex-col items-center justify-between gap-4 px-6 pb-14 text-[13px] font-light text-dim md:flex-row md:px-20">
+          <span>OMC</span>
+          <div className="flex gap-7">
+            <Link to="/guide" className="text-dim transition-colors hover:text-ink">
+              가이드
+            </Link>
+            <Link to="/about" className="text-dim transition-colors hover:text-ink">
+              소개
+            </Link>
+            <span>문의</span>
+          </div>
+        </footer>
+      </div>
     </div>
   )
 }
