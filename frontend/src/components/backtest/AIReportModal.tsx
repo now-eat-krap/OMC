@@ -38,17 +38,14 @@ export default function AIReportModal({ report, backtestResult, onClose }: AIRep
     >
       {/* 모달 컨테이너 */}
       <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden"
+        className="bg-white w-full max-w-4xl max-h-[90vh] overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-xl font-bold text-gray-800">AI 전략 분석 리포트</h2>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
+          <h2 className="text-xl font-bold text-ink">AI 전략 분석 리포트</h2>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-raise transition-colors">
+            <X className="w-5 h-5 text-dim" />
           </button>
         </div>
 
@@ -57,13 +54,13 @@ export default function AIReportModal({ report, backtestResult, onClose }: AIRep
           {/* 상단: 점수 게이지 + 레이더 차트 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* 점수 게이지 */}
-            <div className="flex items-center justify-center bg-gray-50 rounded-xl p-6">
+            <div className="flex items-center justify-center bg-raise p-6">
               <ScoreGauge score={report.overallScore} grade={report.grade} />
             </div>
 
             {/* 레이더 차트 */}
-            <div className="bg-gray-50 rounded-xl p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-2 text-center">전략 분석</h3>
+            <div className="bg-raise p-4">
+              <h3 className="text-sm font-semibold text-dim mb-2 text-center">전략 분석</h3>
               <StrategyRadarChart metrics={report.radarMetrics} />
             </div>
           </div>
@@ -79,8 +76,8 @@ export default function AIReportModal({ report, backtestResult, onClose }: AIRep
 
           {/* 한줄 요약 */}
           {report.summary && (
-            <div className="bg-purple-50 border border-purple-100 rounded-xl p-4">
-              <p className="text-gray-700 text-sm leading-relaxed">{report.summary}</p>
+            <div className="bg-purple-50 border border-purple-100 p-4">
+              <p className="text-ink text-sm leading-relaxed">{report.summary}</p>
             </div>
           )}
 

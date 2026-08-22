@@ -140,25 +140,24 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
     <div className="h-full flex flex-col">
       {/* 헤더 */}
       <div className="flex items-center gap-2 mb-4">
-        <Sparkles className="w-5 h-5 text-purple-400" />
-        <h3 className="text-lg font-semibold text-white">AI 전략 생성</h3>
+        <Sparkles className="w-5 h-5 text-accent" />
+        <h3 className="text-lg font-semibold text-strong">AI 전략 생성</h3>
       </div>
 
       {/* 설명 */}
-      <p className="text-sm text-white/60 mb-4">
+      <p className="text-sm text-muted mb-4">
         자연어로 전략을 설명하면 AI가 백테스팅 조건으로 변환합니다.
       </p>
 
       {/* 예시 버튼 */}
       <div className="mb-4">
-        <p className="text-xs text-white/40 mb-2">예시:</p>
+        <p className="text-xs text-dim mb-2">예시:</p>
         <div className="flex flex-wrap gap-2">
           {examples.map((example, index) => (
             <button
               key={index}
               onClick={() => handleExampleClick(example)}
-              className="px-3 py-1.5 text-xs bg-white/5 border border-white/10 rounded-lg
-                        text-white/60 hover:text-white hover:bg-white/10 transition-all"
+              className="px-3 py-1.5 text-xs bg-raise border border-line text-muted hover:text-strong hover:bg-raise transition-all"
             >
               {example.length > 25 ? `${example.substring(0, 25)}...` : example}
             </button>
@@ -172,22 +171,21 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="예: RSI가 30 아래면 매수하고, 70 이상이면 매도해줘"
-          className="w-full h-32 px-4 py-3 bg-white/5 border border-white/20 rounded-xl
-                    text-white placeholder-white/30 text-sm resize-none
-                    focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/30
-                    transition-all"
+          className="w-full h-32 px-4 py-3 bg-raise border border-line text-strong placeholder-white/30 text-sm resize-none
+                    focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent
+ transition-all"
           maxLength={1000}
         />
         <div className="flex justify-between items-center mt-1">
-          <span className="text-xs text-white/30">{prompt.length}/1000</span>
+          <span className="text-xs text-dim">{prompt.length}/1000</span>
           <button
             onClick={handleGenerate}
             disabled={isLoading || !prompt.trim()}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold
                        transition-all ${
                          isLoading || !prompt.trim()
-                           ? 'bg-purple-500/30 text-purple-300/50 cursor-not-allowed'
-                           : 'bg-purple-500 text-white hover:bg-purple-600 shadow-lg shadow-purple-500/30'
+                           ? 'bg-wash text-accent/50 cursor-not-allowed'
+                           : 'bg-accent text-accent-ink hover:opacity-90'
                        }`}
           >
             {isLoading ? (
@@ -207,33 +205,33 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
 
       {/* 에러 메시지 */}
       {error && (
-        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg flex items-start gap-2">
-          <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-          <p className="text-sm text-red-300">{error}</p>
+        <div className="mb-4 p-3 bg-down/15 border border-down flex items-start gap-2">
+          <AlertCircle className="w-4 h-4 text-down flex-shrink-0 mt-0.5" />
+          <p className="text-sm text-down">{error}</p>
         </div>
       )}
 
       {/* 결과 미리보기 */}
       {result && (
         <div className="flex-1 overflow-y-auto">
-          <div className="p-4 bg-white/5 border border-white/20 rounded-xl">
+          <div className="p-4 bg-raise border border-line ">
             <div className="flex items-center gap-2 mb-3">
-              <Check className="w-4 h-4 text-green-400" />
-              <span className="text-sm font-semibold text-green-400">전략 생성 완료</span>
+              <Check className="w-4 h-4 text-up" />
+              <span className="text-sm font-semibold text-up">전략 생성 완료</span>
             </div>
 
             {/* 매수 조건 */}
             {result.buyConditions.length > 0 && (
               <div className="mb-3">
-                <p className="text-xs font-medium text-green-400 mb-2">📈 매수 조건</p>
+                <p className="text-xs font-medium text-up mb-2">📈 매수 조건</p>
                 <div className="space-y-1">
                   {result.buyConditions.map((cond, idx) => (
                     <div key={cond.id || idx} className="flex items-center gap-2">
-                      <span className="text-sm text-white/80 bg-green-500/10 px-2 py-1 rounded">
+                      <span className="text-sm text-ink bg-up/15 px-2 py-1 rounded">
                         {conditionToText(cond)}
                       </span>
                       {idx < result.buyConditions.length - 1 && (
-                        <span className="text-xs text-purple-400 font-bold">
+                        <span className="text-xs text-accent font-bold">
                           {cond.nextOperator || 'AND'}
                         </span>
                       )}
@@ -246,15 +244,15 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
             {/* 매도 조건 */}
             {result.sellConditions.length > 0 && (
               <div className="mb-4">
-                <p className="text-xs font-medium text-red-400 mb-2">📉 매도 조건</p>
+                <p className="text-xs font-medium text-down mb-2">📉 매도 조건</p>
                 <div className="space-y-1">
                   {result.sellConditions.map((cond, idx) => (
                     <div key={cond.id || idx} className="flex items-center gap-2">
-                      <span className="text-sm text-white/80 bg-red-500/10 px-2 py-1 rounded">
+                      <span className="text-sm text-ink bg-down/15 px-2 py-1 rounded">
                         {conditionToText(cond)}
                       </span>
                       {idx < result.sellConditions.length - 1 && (
-                        <span className="text-xs text-purple-400 font-bold">
+                        <span className="text-xs text-accent font-bold">
                           {cond.nextOperator || 'AND'}
                         </span>
                       )}
@@ -266,7 +264,7 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
 
             {/* 조건 없음 경고 */}
             {result.buyConditions.length === 0 && result.sellConditions.length === 0 && (
-              <p className="text-sm text-yellow-400">
+              <p className="text-sm text-accent">
                 ⚠️ 조건을 생성하지 못했습니다. 다른 표현으로 시도해보세요.
               </p>
             )}
@@ -275,11 +273,10 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
             {(result.buyConditions.length > 0 || result.sellConditions.length > 0) && (
               <button
                 onClick={handleApply}
-                className="w-full flex items-center justify-center gap-2 py-2.5 
-                          bg-gradient-to-r from-purple-500 to-pink-500 
-                          text-white font-semibold rounded-lg
-                          hover:from-purple-600 hover:to-pink-600
-                          transition-all shadow-lg shadow-purple-500/20"
+                className="w-full flex items-center justify-center gap-2 py-2.5 to-pink-500 
+                          text-strong font-semibold 
+                          hover: hover:to-pink-600
+                          transition-all  "
               >
                 조건 적용하기
                 <ArrowRight className="w-4 h-4" />
@@ -291,8 +288,8 @@ export default function AIStrategyGenerator({ onApplyConditions }: AIStrategyGen
 
       {/* 안내 문구 */}
       {!result && !isLoading && (
-        <div className="mt-auto pt-4 border-t border-white/10">
-          <p className="text-xs text-white/30 text-center">
+        <div className="mt-auto pt-4 border-t border-line">
+          <p className="text-xs text-dim text-center">
             💡 지원 지표: RSI, SMA, EMA, MACD, 볼린저밴드, 스토캐스틱
           </p>
         </div>

@@ -6,6 +6,8 @@ import time
 
 import numpy as np
 import vectorbt as vbt
+from numba import njit
+from vectorbt.portfolio import nb as portfolio_nb
 
 from app.core.config import get_coin_precision
 from app.schemas import BacktestRequest, BacktestResult, SentenceCondition
@@ -16,6 +18,54 @@ from app.utils import safe_float
 from app.utils.date_utils import adjust_start_date_for_timeframe
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Numba JIT 주문 함수 (모듈 레벨)
+# =============================================================================
+# 주의: 반드시 모듈 레벨에 정의해야 합니다.
+# 메서드 내부에 클로저로 정의하면 요청마다 새 함수 객체가 생성되어
+# Numba가 매번 재컴파일합니다 (요청당 수 초의 컴파일 오버헤드).
+# 모듈 레벨 정의 시 프로세스당 1회만 컴파일되며,
+# 서버 기동 시 warmup_numba_jit()이 이 경로를 미리 컴파일합니다.
+@njit
+def order_func_nb(c, entries, exits, open_prices, prec_mult, fees, slippage):
+    """주문 함수 - 각 봉마다 호출
+
+    c: OrderContext (현재 상태 정보 포함)
+    복리 재투자 + 코인별 정밀도 버림 처리를 수행합니다.
+    """
+    idx = c.i
+
+    # 현재 포지션 보유 여부
+    has_position = c.position_now > 0
+
+    # 청산 시그널 (포지션 보유 중 + 청산 시그널)
+    if has_position and exits[idx]:
+        return portfolio_nb.order_nb(
+            size=-c.position_now,
+            price=open_prices[idx],
+            fees=fees,
+            slippage=slippage,
+        )
+
+    # 진입 시그널 (포지션 없음 + 진입 시그널)
+    if not has_position and entries[idx]:
+        price = open_prices[idx]
+
+        # 정수 연산으로 버림 처리 (부동소수점 오차 방지)
+        raw_qty = c.cash_now / price
+        floored_qty = np.floor(raw_qty * prec_mult) / prec_mult
+
+        if floored_qty > 0:
+            return portfolio_nb.order_nb(
+                size=floored_qty,
+                price=price,
+                fees=fees,
+                slippage=slippage,
+            )
+
+    return portfolio_nb.order_nb(size=np.nan)
 
 
 class BacktestEngine:
@@ -205,49 +255,8 @@ class BacktestEngine:
         fees_rate = request.feeRate / 100
         slippage_rate = request.slippage / 100
 
-        # Numba JIT 컴파일된 주문 함수
-        from numba import njit
-        from vectorbt.portfolio import nb
-
-        @njit
-        def order_func_nb(c, entries, exits, open_prices, prec_mult, fees, slippage):
-            """
-            주문 함수 - 각 봉마다 호출
-            c: OrderContext (현재 상태 정보 포함)
-            """
-            idx = c.i
-
-            # 현재 포지션 보유 여부
-            has_position = c.position_now > 0
-
-            # 청산 시그널 (포지션 보유 중 + 청산 시그널)
-            if has_position and exits[idx]:
-                return nb.order_nb(
-                    size=-c.position_now,
-                    price=open_prices[idx],
-                    fees=fees,
-                    slippage=slippage,
-                )
-
-            # 진입 시그널 (포지션 없음 + 진입 시그널)
-            if not has_position and entries[idx]:
-                price = open_prices[idx]
-
-                # 정수 연산으로 버림 처리 (부동소수점 오차 방지)
-                raw_qty = c.cash_now / price
-                floored_qty = np.floor(raw_qty * prec_mult) / prec_mult
-
-                if floored_qty > 0:
-                    return nb.order_nb(
-                        size=floored_qty,
-                        price=price,
-                        fees=fees,
-                        slippage=slippage,
-                    )
-
-            return nb.order_nb(size=np.nan)
-
         # from_order_func로 포트폴리오 시뮬레이션
+        # (order_func_nb는 모듈 레벨 정의 - 재컴파일 방지, 상단 주석 참고)
         # wrapper_kwargs로 datetime 인덱스 명시적 전달
         portfolio = vbt.Portfolio.from_order_func(
             close.to_frame(),  # pandas DataFrame으로 전달

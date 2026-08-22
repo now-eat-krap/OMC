@@ -30,6 +30,8 @@ import type {
   MouseEventParams,
 } from 'lightweight-charts'
 import type { TradeRecord, OHLCVData, IndicatorData } from './types'
+import { getChartPalette } from '../../theme/chartColors'
+import { useTheme } from '../../theme/useTheme'
 
 // 외부에서 사용할 수 있는 차트 핸들 인터페이스
 export interface BacktestChartHandle {
@@ -89,6 +91,8 @@ const INDICATOR_COLOR_VARIANTS: Record<string, string[]> = {
 
 const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
   ({ ohlcv, trades = [], indicators = [], height = '100%' }, ref) => {
+    // 테마가 바뀌면 차트를 새 팔레트로 다시 그린다
+    const { theme } = useTheme()
     const chartContainerRef = useRef<HTMLDivElement>(null)
     const chartRef = useRef<IChartApi | null>(null)
 
@@ -396,24 +400,25 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
         chartRef.current = null
       }
 
-      // 단일 차트 생성 (v5 Pane API 활용)
+      // 단일 차트 생성 (v5 Pane API 활용) — 색은 테마 팔레트에서
+      const palette = getChartPalette(theme)
       const chart = createChart(chartContainerRef.current, {
         layout: {
           background: { type: ColorType.Solid, color: 'transparent' },
-          textColor: 'rgba(255, 255, 255, 0.6)',
+          textColor: palette.text,
         },
         grid: {
-          vertLines: { color: 'rgba(255, 255, 255, 0.05)' },
-          horzLines: { color: 'rgba(255, 255, 255, 0.05)' },
+          vertLines: { color: palette.grid },
+          horzLines: { color: palette.grid },
         },
         crosshair: {
           mode: CrosshairMode.Normal,
-          vertLine: { color: 'rgba(168, 85, 247, 0.5)', width: 1, style: 2 },
-          horzLine: { color: 'rgba(168, 85, 247, 0.5)', width: 1, style: 2 },
+          vertLine: { color: palette.crosshair, width: 1, style: 2 },
+          horzLine: { color: palette.crosshair, width: 1, style: 2 },
         },
-        rightPriceScale: { borderColor: 'rgba(255, 255, 255, 0.1)' },
+        rightPriceScale: { borderColor: palette.border },
         timeScale: {
-          borderColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: palette.border,
           timeVisible: true,
           secondsVisible: false,
         },
@@ -442,12 +447,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
       const candlestickSeries = chart.addSeries(
         CandlestickSeries,
         {
-          upColor: '#22c55e',
-          downColor: '#ef4444',
-          borderUpColor: '#22c55e',
-          borderDownColor: '#ef4444',
-          wickUpColor: '#22c55e',
-          wickDownColor: '#ef4444',
+          upColor: palette.up,
+          downColor: palette.down,
+          borderUpColor: palette.up,
+          borderDownColor: palette.down,
+          wickUpColor: palette.up,
+          wickDownColor: palette.down,
         },
         0
       ) // Pane 0
@@ -473,7 +478,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             result.push({
               time: isoToChartTime(trade.entryTime),
               position: 'belowBar',
-              color: '#22c55e',
+              color: palette.up,
               shape: 'arrowUp',
               text: `매수 #${tradeNum}`,
             })
@@ -483,7 +488,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             result.push({
               time: isoToChartTime(trade.exitTime),
               position: 'aboveBar',
-              color: '#ef4444',
+              color: palette.down,
               shape: 'arrowDown',
               text: `매도 #${tradeNum}`,
             })
@@ -622,7 +627,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           const overBought = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(255, 255, 255, 0.5)',
+              color: palette.text,
               lineWidth: 2,
               lineStyle: 0,
               priceLineVisible: false,
@@ -635,7 +640,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           const overSold = chart.addSeries(
             LineSeries,
             {
-              color: 'rgba(255, 255, 255, 0.5)',
+              color: palette.text,
               lineWidth: 2,
               lineStyle: 0,
               priceLineVisible: false,
@@ -782,12 +787,12 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           chartRef.current = null
         }
       }
-    }, [ohlcv, trades, priceIndicators, oscillatorIndicators, handleCrosshairMove])
+    }, [ohlcv, trades, priceIndicators, oscillatorIndicators, handleCrosshairMove, theme])
 
     // 데이터가 없을 때 플레이스홀더
     if (ohlcv.length === 0) {
       return (
-        <div className="flex items-center justify-center h-full text-white/40 text-sm">
+        <div className="flex items-center justify-center h-full text-dim text-sm">
           백테스트를 실행하면 차트가 표시됩니다.
         </div>
       )
@@ -796,25 +801,23 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
     return (
       <div className="flex flex-col w-full relative" style={{ height }}>
         {/* OHLC 및 지표 레전드 (좌측 상단) */}
-        <div className="absolute top-2 left-2 z-10 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-2 text-xs pointer-events-none">
+        <div className="absolute top-2 left-2 z-10 bg-panel backdrop-blur-sm px-3 py-2 text-xs pointer-events-none">
           {hoverData ? (
             <div className="flex flex-col gap-1">
               {/* 날짜 */}
-              <span className="text-white/60">{hoverData.time}</span>
+              <span className="text-muted">{hoverData.time}</span>
 
               {/* OHLC 값 */}
               <div className="flex items-center gap-3">
-                <span className="text-white/50">시가</span>
-                <span className="text-white font-medium">{hoverData.open.toFixed(2)}</span>
-                <span className="text-white/50">고가</span>
-                <span className="text-white font-medium">{hoverData.high.toFixed(2)}</span>
-                <span className="text-white/50">저가</span>
-                <span className="text-white font-medium">{hoverData.low.toFixed(2)}</span>
-                <span className="text-white/50">종가</span>
-                <span className="text-white font-medium">{hoverData.close.toFixed(2)}</span>
-                <span
-                  className={`font-medium ${hoverData.change >= 0 ? 'text-green-400' : 'text-red-400'}`}
-                >
+                <span className="text-muted">시가</span>
+                <span className="text-strong font-medium">{hoverData.open.toFixed(2)}</span>
+                <span className="text-muted">고가</span>
+                <span className="text-strong font-medium">{hoverData.high.toFixed(2)}</span>
+                <span className="text-muted">저가</span>
+                <span className="text-strong font-medium">{hoverData.low.toFixed(2)}</span>
+                <span className="text-muted">종가</span>
+                <span className="text-strong font-medium">{hoverData.close.toFixed(2)}</span>
+                <span className={`font-medium ${hoverData.change >= 0 ? 'text-up' : 'text-down'}`}>
                   {hoverData.change >= 0 ? '+' : ''}
                   {hoverData.changePercent.toFixed(2)}%
                 </span>
@@ -829,15 +832,15 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
                         className="w-2 h-2 rounded-full flex-shrink-0"
                         style={{ backgroundColor: ind.color }}
                       />
-                      <span className="text-white/50">{ind.name}</span>
-                      <span className="text-white font-medium">{ind.value.toFixed(2)}</span>
+                      <span className="text-muted">{ind.name}</span>
+                      <span className="text-strong font-medium">{ind.value.toFixed(2)}</span>
                     </span>
                   ))}
                 </div>
               )}
             </div>
           ) : (
-            <span className="text-white/40">차트 위에 마우스를 올리세요</span>
+            <span className="text-dim">차트 위에 마우스를 올리세요</span>
           )}
         </div>
 

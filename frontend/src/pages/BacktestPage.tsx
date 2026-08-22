@@ -1,14 +1,15 @@
 // 전략 백테스팅 페이지
-// TradingView 스타일 차트 중심 레이아웃 + 리사이즈 패널
+// 딥 그린 레이아웃: 툴바 / 차트 / 결과 탭 + 오른쪽 전략 레일
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-
+import { X } from 'lucide-react'
 import {
   SettingsModal,
   AssetConfig,
   TradingConfigPanel,
   ChartPreview,
   BacktestToolbar,
+  StrategyRail,
   TabPanel,
   DEFAULT_TRADING_CONFIG,
   type BacktestChartHandle,
@@ -38,9 +39,6 @@ export default function BacktestPage() {
     return yesterday.toISOString().split('T')[0]
   }
 
-  // ========================================
-  // 로컬 스토리지에 저장되는 설정들
-  // ========================================
   // ========================================
   // 로컬 스토리지에 저장되는 설정들
   // ========================================
@@ -256,13 +254,20 @@ export default function BacktestPage() {
   const hasConditions = buyConditions.length > 0 || sellConditions.length > 0
 
   return (
-    <div className="h-screen bg-gradient-to-b from-gray-900 via-black to-gray-900 text-white flex flex-col overflow-hidden">
+    <div className="h-screen bg-canvas text-ink flex flex-col overflow-hidden">
       {/* 에러 알림 배너 */}
       {error && (
-        <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-2 text-sm flex items-center justify-between">
-          <span>⚠️ {error}</span>
-          <button onClick={() => setError(null)} className="text-red-300 hover:text-white">
-            ✕
+        <div className="flex items-center justify-between gap-4 px-5 py-2.5 bg-down/10 border-b border-down/40 text-down text-[13px]">
+          <span className="flex items-center gap-2.5">
+            <span className="font-mono text-[10px] tracking-[0.2em]">ERROR</span>
+            {error}
+          </span>
+          <button
+            onClick={() => setError(null)}
+            className="bg-transparent border-0 p-1 text-down hover:text-strong"
+            aria-label="오류 닫기"
+          >
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -293,70 +298,89 @@ export default function BacktestPage() {
         onSellConditionsChange={setSellConditions}
       />
 
-      {/* 메인 콘텐츠 */}
-      <main ref={containerRef} className="flex-1 flex flex-col min-h-0">
-        {/* 상단 툴바 */}
-        <BacktestToolbar
-          asset={asset}
-          onAssetChange={setAsset}
-          timeFrame={timeFrame}
-          onTimeFrameChange={setTimeFrame}
-          mode={mode}
-          onModeChange={setMode}
-          onRunBacktest={handleRunBacktest}
-          isRunning={isRunning}
-          canRun={hasConditions}
-          onOpenSettings={() => setIsModalOpen(true)}
-        />
+      {/* 상단 툴바 */}
+      <BacktestToolbar
+        asset={asset}
+        onAssetChange={setAsset}
+        timeFrame={timeFrame}
+        onTimeFrameChange={setTimeFrame}
+        mode={mode}
+        onModeChange={setMode}
+        onRunBacktest={handleRunBacktest}
+        isRunning={isRunning}
+        canRun={hasConditions}
+        onOpenSettings={() => setIsModalOpen(true)}
+      />
 
-        {/* 차트 영역 (60% - 상단 패널) */}
-        {/* 드래그 중일 때는 pointer-events-none을 적용하여 iframe이 마우스 이벤트를 가로채지 못하게 함 */}
-        <div
-          style={{ flex: `${100 - bottomPanelPercent}` }}
-          className={`min-h-0 p-4 ${isDragging ? 'pointer-events-none' : ''}`}
-        >
-          <div className="h-full">
-            <ChartPreview
-              ref={chartRef}
-              asset={asset}
-              timeFrame={timeFrame}
-              mode={mode}
-              hasSignals={result !== null}
-              ohlcv={result?.ohlcv || []}
-              trades={result?.trades || []}
-              indicators={result?.indicators || []}
+      {/* 본문: 차트 + 결과 탭 | 전략 레일 */}
+      <div className="flex-1 flex min-h-0">
+        <main ref={containerRef} className="flex-1 flex flex-col min-h-0 min-w-0">
+          {/* 차트 영역 */}
+          {/* 드래그 중일 때는 pointer-events-none을 적용하여 iframe이 마우스 이벤트를 가로채지 못하게 함 */}
+          <div
+            style={{ flex: `${100 - bottomPanelPercent}` }}
+            className={`min-h-0 p-3 ${isDragging ? 'pointer-events-none' : ''}`}
+          >
+            <div className="h-full">
+              <ChartPreview
+                ref={chartRef}
+                asset={asset}
+                timeFrame={timeFrame}
+                mode={mode}
+                hasSignals={result !== null}
+                ohlcv={result?.ohlcv || []}
+                trades={result?.trades || []}
+                indicators={result?.indicators || []}
+              />
+            </div>
+          </div>
+
+          {/* 리사이즈 핸들 */}
+          <div
+            onMouseDown={handleMouseDown}
+            className="h-1.5 bg-hair border-y border-line cursor-row-resize flex items-center justify-center group shrink-0 hover:bg-wash transition-colors"
+          >
+            <div className="w-10 h-px bg-dim group-hover:bg-accent transition-colors" />
+          </div>
+
+          {/* 하단 결과 탭 패널 */}
+          <div style={{ flex: `${bottomPanelPercent}` }} className="min-h-0">
+            <TabPanel
+              result={result}
+              buyConditions={buyConditions}
+              sellConditions={sellConditions}
+              isRunning={isRunning}
+              onEditStrategy={() => setIsModalOpen(true)}
+              onScrollToTime={(isoString) => {
+                // 백테스트 모드로 전환 후 차트 스크롤
+                if (mode !== 'backtest') {
+                  setMode('backtest')
+                }
+                // 다음 프레임에 스크롤 실행 (모드 변경 후 렌더링 대기)
+                setTimeout(() => {
+                  chartRef.current?.scrollToTime(isoString)
+                }, 100)
+              }}
             />
           </div>
-        </div>
+        </main>
 
-        {/* 리사이즈 핸들 */}
-        <div
-          onMouseDown={handleMouseDown}
-          className="h-2 bg-white/5 hover:bg-purple-500/50 transition-colors cursor-row-resize flex items-center justify-center group flex-shrink-0"
-        >
-          <div className="w-12 h-1 rounded-full bg-white/20 group-hover:bg-purple-400 transition-colors" />
-        </div>
-
-        {/* 하단 탭 패널 (40% - 하단 패널) */}
-        <div style={{ flex: `${bottomPanelPercent}` }} className="min-h-0">
-          <TabPanel
-            result={result}
+        {/* 오른쪽 전략 레일 (넓은 화면에서만) */}
+        <div className="hidden xl:flex">
+          <StrategyRail
+            asset={asset}
+            timeFrame={timeFrame}
+            startDate={startDate}
+            endDate={endDate}
+            initialCapital={initialCapital}
+            tradingConfig={tradingConfig}
             buyConditions={buyConditions}
             sellConditions={sellConditions}
-            onEditStrategy={() => setIsModalOpen(true)}
-            onScrollToTime={(isoString) => {
-              // 백테스트 모드로 전환 후 차트 스크롤
-              if (mode !== 'backtest') {
-                setMode('backtest')
-              }
-              // 다음 프레임에 스크롤 실행 (모드 변경 후 렌더링 대기)
-              setTimeout(() => {
-                chartRef.current?.scrollToTime(isoString)
-              }, 100)
-            }}
+            result={result}
+            onEdit={() => setIsModalOpen(true)}
           />
         </div>
-      </main>
+      </div>
     </div>
   )
 }

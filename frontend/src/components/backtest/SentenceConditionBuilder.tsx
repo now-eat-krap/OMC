@@ -52,10 +52,8 @@ export default function SentenceConditionBuilder({
     <div className="space-y-4">
       {/* 섹션 헤더 */}
       <div className="flex items-center justify-between">
-        <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-          <Circle
-            className={`w-3 h-3 ${isBuy ? 'fill-green-400 text-green-400' : 'fill-red-400 text-red-400'}`}
-          />
+        <h3 className="flex items-center gap-2 text-lg font-semibold text-strong">
+          <Circle className={`w-3 h-3 ${isBuy ? 'fill-up text-up' : 'fill-down text-down'}`} />
           {isBuy ? '매수 조건' : '매도 조건'}
         </h3>
       </div>
@@ -75,12 +73,11 @@ export default function SentenceConditionBuilder({
                 <div className="flex items-center justify-center py-2">
                   <button
                     onClick={() => handleToggleOperator(index)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all
-                      ${
-                        condition.nextOperator === 'OR'
-                          ? 'bg-orange-500/20 text-orange-400 border border-orange-500 hover:bg-orange-500/30'
-                          : 'bg-purple-500/20 text-purple-400 border border-purple-500 hover:bg-purple-500/30'
-                      }`}
+                    className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                      condition.nextOperator === 'OR'
+                        ? 'bg-wash text-accent border border-accent hover:bg-wash'
+                        : 'bg-wash text-accent border border-accent hover:bg-wash'
+                    }`}
                     title="클릭하여 AND/OR 전환"
                   >
                     {condition.nextOperator || 'AND'}
@@ -91,13 +88,13 @@ export default function SentenceConditionBuilder({
           ))}
         </div>
       ) : (
-        <div className="p-6 rounded-xl border border-dashed border-white/20 text-center">
-          <p className="text-white/40 text-sm">아래에서 조건을 추가해주세요</p>
+        <div className="p-6 border border-dashed border-line text-center">
+          <p className="text-dim text-sm">아래에서 조건을 추가해주세요</p>
         </div>
       )}
 
       {/* 템플릿 선택기 */}
-      <div className="pt-3 border-t border-white/10">
+      <div className="pt-3 border-t border-line">
         <TemplateSelector onAddCondition={handleAddCondition} />
       </div>
     </div>

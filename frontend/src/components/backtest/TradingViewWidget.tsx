@@ -1,8 +1,10 @@
 // TradingView 실시간 차트 위젯 컴포넌트
-// interval과 symbol을 props로 받아 동적으로 변경
+// interval, symbol, 테마를 props/컨텍스트로 받아 동적으로 변경
 
 import { useEffect, useRef, memo } from 'react'
 import type { TimeFrame } from './types'
+import { useTheme } from '../../theme/useTheme'
+import { getChartPalette } from '../../theme/chartColors'
 
 // TradingView에서 사용하는 interval 형식으로 변환
 const TIMEFRAME_TO_TV_INTERVAL: Record<TimeFrame, string> = {
@@ -28,6 +30,8 @@ interface TradingViewWidgetProps {
 
 function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  // 위젯은 iframe이라 CSS 변수가 닿지 않는다. 테마를 옵션으로 직접 넘긴다
+  const { theme } = useTheme()
 
   useEffect(() => {
     const container = containerRef.current
@@ -35,7 +39,7 @@ function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
       return
     }
 
-    // 기존 위젯 제거 (심볼/인터벌 변경 시 재생성)
+    // 기존 위젯 제거 (심볼/인터벌/테마 변경 시 재생성)
     container.innerHTML = ''
 
     // 위젯 컨테이너 생성
@@ -54,6 +58,7 @@ function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
     // TradingView 설정
     const tvSymbol = assetToTVSymbol(symbol)
     const tvInterval = TIMEFRAME_TO_TV_INTERVAL[interval]
+    const palette = getChartPalette(theme)
 
     script.innerHTML = JSON.stringify({
       allow_symbol_change: false,
@@ -69,10 +74,10 @@ function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
       save_image: false,
       style: '1',
       symbol: tvSymbol,
-      theme: 'dark',
+      theme: theme === 'light' ? 'light' : 'dark',
       timezone: 'Asia/Seoul',
-      backgroundColor: '#0A0A0F',
-      gridColor: 'rgba(255, 255, 255, 0.06)',
+      backgroundColor: palette.background,
+      gridColor: palette.grid,
       watchlist: [],
       withdateranges: false,
       compareSymbols: [],
@@ -86,7 +91,7 @@ function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
     return () => {
       container.innerHTML = ''
     }
-  }, [symbol, interval]) // symbol이나 interval 변경 시 위젯 재생성
+  }, [symbol, interval, theme]) // symbol/interval/테마 변경 시 위젯 재생성
 
   return (
     <div
@@ -95,7 +100,6 @@ function TradingViewWidget({ symbol, interval }: TradingViewWidgetProps) {
       style={{
         height: '100%',
         width: '100%',
-        borderRadius: '16px',
         overflow: 'hidden',
       }}
     />
