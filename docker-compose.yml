@@ -96,7 +96,10 @@ services:
       dockerfile: Dockerfile
     container_name: backtesting-rq-worker
     restart: unless-stopped
-    command: rq worker backtest --url redis://${REDIS_PASSWORD:+:${REDIS_PASSWORD}@}redis:6379/0 --with-scheduler
+    # rq CLI 대신 진입 모듈을 쓴다.
+    # 워커를 띄우기 전에 Numba JIT 워밍업을 끝내야 fork된 자식 프로세스가
+    # 컴파일 결과를 물려받는다 (app/worker.py 주석 참고)
+    command: python -m app.worker
     environment:
       <<: *common-env
     depends_on:
