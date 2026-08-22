@@ -2,7 +2,7 @@
 // TradingView 스타일 차트 중심 레이아웃 + 리사이즈 패널
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
+
 import {
   SettingsModal,
   AssetConfig,
@@ -41,19 +41,50 @@ export default function BacktestPage() {
   // ========================================
   // 로컬 스토리지에 저장되는 설정들
   // ========================================
-  const [savedSettings, setSavedSettings] = useLocalStorage('backtest-strategy-settings', {
-    // 기본설정
-    asset: 'BTC/USDT',
-    startDate: '',
-    endDate: getYesterday(),
-    timeFrame: '1d' as TimeFrame,
-    initialCapital: 1000000,
-    // 거래설정
-    tradingConfig: DEFAULT_TRADING_CONFIG,
-    // 전략조건
-    buyConditions: [] as SentenceCondition[],
-    sellConditions: [] as SentenceCondition[],
+  // ========================================
+  // 로컬 스토리지에 저장되는 설정들
+  // ========================================
+  const [savedSettings, setSavedSettings] = useState(() => {
+    try {
+      const item = window.localStorage.getItem('backtest-strategy-settings')
+      // 값이 있으면 파싱해서 반환
+      if (item) {
+        return JSON.parse(item)
+      }
+      // 없으면 기본값 반환
+      return {
+        asset: 'BTC/USDT',
+        startDate: '',
+        endDate: getYesterday(),
+        timeFrame: '1d' as TimeFrame,
+        initialCapital: 1000000,
+        tradingConfig: DEFAULT_TRADING_CONFIG,
+        buyConditions: [] as SentenceCondition[],
+        sellConditions: [] as SentenceCondition[],
+      }
+    } catch {
+      // 에러 시 기본값 반환
+      return {
+        asset: 'BTC/USDT',
+        startDate: '',
+        endDate: getYesterday(),
+        timeFrame: '1d' as TimeFrame,
+        initialCapital: 1000000,
+        tradingConfig: DEFAULT_TRADING_CONFIG,
+        buyConditions: [] as SentenceCondition[],
+        sellConditions: [] as SentenceCondition[],
+      }
+    }
   })
+
+  // 설정이 변경되면 로컬 스토리지에 저장
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('backtest-strategy-settings', JSON.stringify(savedSettings))
+    } catch (e) {
+      console.error('Failed to save settings:', e)
+    }
+  }, [savedSettings])
 
   // 저장된 설정에서 값 추출
   const {
@@ -68,21 +99,22 @@ export default function BacktestPage() {
   } = savedSettings
 
   // 개별 setter 함수들 (기존 코드와의 호환성을 위해)
-  const setAsset = (newAsset: string) => setSavedSettings((prev) => ({ ...prev, asset: newAsset }))
+  const setAsset = (newAsset: string) =>
+    setSavedSettings((prev: any) => ({ ...prev, asset: newAsset }))
   const setStartDate = (newStartDate: string) =>
-    setSavedSettings((prev) => ({ ...prev, startDate: newStartDate }))
+    setSavedSettings((prev: any) => ({ ...prev, startDate: newStartDate }))
   const setEndDate = (newEndDate: string) =>
-    setSavedSettings((prev) => ({ ...prev, endDate: newEndDate }))
+    setSavedSettings((prev: any) => ({ ...prev, endDate: newEndDate }))
   const setTimeFrame = (newTimeFrame: TimeFrame) =>
-    setSavedSettings((prev) => ({ ...prev, timeFrame: newTimeFrame }))
+    setSavedSettings((prev: any) => ({ ...prev, timeFrame: newTimeFrame }))
   const setInitialCapital = (newCapital: number) =>
-    setSavedSettings((prev) => ({ ...prev, initialCapital: newCapital }))
+    setSavedSettings((prev: any) => ({ ...prev, initialCapital: newCapital }))
   const setTradingConfig = (newConfig: TradingConfig) =>
-    setSavedSettings((prev) => ({ ...prev, tradingConfig: newConfig }))
+    setSavedSettings((prev: any) => ({ ...prev, tradingConfig: newConfig }))
   const setBuyConditions = (newConditions: SentenceCondition[]) =>
-    setSavedSettings((prev) => ({ ...prev, buyConditions: newConditions }))
+    setSavedSettings((prev: any) => ({ ...prev, buyConditions: newConditions }))
   const setSellConditions = (newConditions: SentenceCondition[]) =>
-    setSavedSettings((prev) => ({ ...prev, sellConditions: newConditions }))
+    setSavedSettings((prev: any) => ({ ...prev, sellConditions: newConditions }))
 
   // 페이지 로드 시 기본 코인(BTC/USDT)의 시작일 가져오기
   useEffect(() => {
@@ -108,10 +140,13 @@ export default function BacktestPage() {
 
   // 코인 선택 핸들러 (시작일도 함께 저장)
   const handleAssetChange = (newAsset: string, newStartDate: string) => {
-    setAsset(newAsset)
     setAssetStartDate(newStartDate)
-    // 백테스트 시작일도 새 심볼의 시작일로 업데이트
-    setStartDate(newStartDate)
+    // 자산과 시작일을 한 번에 업데이트 (불필요한 리렌더링 방지)
+    setSavedSettings((prev: any) => ({
+      ...prev,
+      asset: newAsset,
+      startDate: newStartDate,
+    }))
   }
 
   // 백테스팅 상태
