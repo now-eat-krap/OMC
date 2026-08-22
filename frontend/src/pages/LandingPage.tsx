@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import Navbar from '../components/layout/Navbar'
+import HeroDemo from '../components/landing/HeroDemo'
 
 // ---------------------------------------------------------------------------
 // 조각들
@@ -36,18 +37,6 @@ function Tray({ children, className = '' }: { children: ReactNode; className?: s
   return (
     <div className={`tray ${className}`}>
       <div className="core h-full bg-panel">{children}</div>
-    </div>
-  )
-}
-
-/** 실제 스크린샷이 들어갈 자리 */
-function ShotSlot({ caption, className = '' }: { caption: string; className?: string }) {
-  return (
-    <div
-      className={`flex flex-col items-center justify-center gap-3 bg-raise text-center ${className}`}
-    >
-      <span className="text-[13px] font-medium tracking-[0.04em] text-dim">제품 화면</span>
-      <span className="text-xs font-light text-dim/80">{caption}</span>
     </div>
   )
 }
@@ -138,13 +127,12 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* ===== 제품 화면 ===== */}
+        {/* ===== 제품 화면 (실제 컴포넌트로 만든 축소 데모) ===== */}
         <section className="px-6 pb-24 pt-16 md:px-20 md:pb-36 md:pt-24">
           <Tray className="rise">
-            <ShotSlot
-              caption="백테스트 결과 화면 전체, 2000 x 1100"
-              className="h-[380px] md:h-[600px]"
-            />
+            <div className="h-[430px] md:h-[560px]">
+              <HeroDemo />
+            </div>
           </Tray>
         </section>
 
