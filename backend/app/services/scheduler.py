@@ -236,6 +236,43 @@ async def warmup_numba_jit():
         trades = portfolio.trades
         _ = trades.count()
 
+        # 실제 백테스트 엔진이 사용하는 from_order_func 경로 워밍업
+        # (from_signals와 별도의 Numba 컴파일 경로이므로 반드시 함께 워밍업)
+        from app.services.backtest.engine import order_func_nb
+
+        dummy_entries_arr = dummy_entries.values.astype(np.bool_)
+        dummy_exits_arr = dummy_exits.values.astype(np.bool_)
+        dummy_open_arr = dummy_close.values.astype(np.float64)
+
+        # 주의: 인자 타입이 실제 엔진 호출과 정확히 일치해야 합니다.
+        # Numba는 타입 시그니처별로 재컴파일하므로, 예를 들어 init_cash를
+        # int로 워밍업하면 엔진의 float 호출 시 다시 수십 초를 컴파일합니다.
+        # (엔진은 request.initialCapital: float, precision_mult: int를 전달)
+        portfolio_of = vbt.Portfolio.from_order_func(
+            dummy_close.to_frame(),
+            order_func_nb,
+            dummy_entries_arr,
+            dummy_exits_arr,
+            dummy_open_arr,
+            10**5,  # precision_mult (int - 엔진과 동일)
+            0.001,  # fees (float)
+            0.0005,  # slippage (float)
+            init_cash=10000.0,  # float - 엔진의 initialCapital과 타입 일치 필수
+            freq="1D",
+        )
+        # 엔진/분석기가 실제로 호출하는 통계 함수들도 이 포트폴리오로 워밍업
+        _ = portfolio_of.total_return()
+        _ = portfolio_of.value()
+        _ = portfolio_of.sharpe_ratio()
+        _ = portfolio_of.max_drawdown()
+        _ = portfolio_of.orders.records_readable
+        trades_of = portfolio_of.trades
+        _ = trades_of.records_readable
+        trades_closed = trades_of.closed
+        _ = trades_closed.count()
+        _ = trades_closed.win_rate
+        _ = trades_closed.profit_factor
+
         logger.info("Numba JIT 워밍업 완료!")
 
     except Exception as e:
