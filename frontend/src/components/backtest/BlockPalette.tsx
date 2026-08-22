@@ -76,7 +76,7 @@ export default function BlockPalette({ onAddBlock }: BlockPaletteProps) {
           <button
             key={template.type}
             onClick={() => handleAddBlock(template)}
-            className="flex items-center gap-3 p-3 bg-raise border border-line hover:bg-raise hover:border-line transition-all text-left group"
+            className="flex items-center gap-3 p-3 bg-raise border border-line rounded-card hover:bg-raise hover:border-line transition-all text-left group"
           >
             {template.icon}
             <div className="flex-1">

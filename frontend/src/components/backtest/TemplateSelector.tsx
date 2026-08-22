@@ -202,7 +202,7 @@ export default function TemplateSelector({
           {TEMPLATES.map((template) => (
             <div
               key={template.type}
-              className="flex items-center gap-3 p-3 bg-raise border border-line 
+              className="flex items-center gap-3 p-3 bg-raise border border-line rounded-card 
                          hover:bg-line hover:border-line transition-all"
             >
               {/* 아이콘 */}
@@ -220,7 +220,7 @@ export default function TemplateSelector({
                 <div className="flex gap-1 flex-shrink-0">
                   <button
                     onClick={() => handleAddToBuy(template)}
-                    className="p-1.5 bg-up/15 border border-up 
+                    className="p-1.5 bg-up/15 border border-up rounded-card 
                                text-up hover:bg-up/15 hover:border-up 
  transition-all"
                     title="매수 조건에 추가"
@@ -229,7 +229,7 @@ export default function TemplateSelector({
                   </button>
                   <button
                     onClick={() => handleAddToSell(template)}
-                    className="p-1.5 bg-down/15 border border-down 
+                    className="p-1.5 bg-down/15 border border-down rounded-card 
                                text-down hover:bg-down/15 hover:border-down 
  transition-all"
                     title="매도 조건에 추가"
@@ -241,7 +241,7 @@ export default function TemplateSelector({
                 // 단일 모드: 추가 버튼
                 <button
                   onClick={() => handleSingleAdd(template)}
-                  className="p-1.5 bg-wash border border-accent 
+                  className="p-1.5 bg-wash border border-accent rounded-card 
                              text-accent hover:bg-wash hover:border-accent 
                              transition-all flex-shrink-0"
                   title="추가"

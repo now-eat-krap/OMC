@@ -240,7 +240,7 @@ export default function SettingsModal({
           <>
             <div className="h-full flex gap-4">
               {/* 왼쪽: 매수 조건 목록 */}
-              <div className="flex-1 min-w-0 bg-up/5 p-4 border border-up">
+              <div className="flex-1 min-w-0 bg-up/5 p-4 border border-up rounded-card">
                 <ConditionList
                   title="매수 조건"
                   type="buy"
@@ -253,7 +253,7 @@ export default function SettingsModal({
               </div>
 
               {/* 오른쪽: 매도 조건 목록 */}
-              <div className="flex-1 min-w-0 bg-down/5 p-4 border border-down">
+              <div className="flex-1 min-w-0 bg-down/5 p-4 border border-down rounded-card">
                 <ConditionList
                   title="매도 조건"
                   type="sell"
@@ -273,7 +273,7 @@ export default function SettingsModal({
                   className="absolute inset-0 bg-scrim backdrop-blur-sm"
                   onClick={() => setAddModalOpen(null)}
                 />
-                <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-panel border border-line p-6">
+                <div className="relative w-full max-w-2xl max-h-[80vh] overflow-y-auto bg-panel border border-line rounded-card p-6">
                   {/* 모달 헤더 */}
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-3">
@@ -332,7 +332,7 @@ export default function SettingsModal({
       <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
 
       {/* 모달 컨테이너 - 화면 가로 90% */}
-      <div className="relative w-[90vw] h-[90vh] bg-panel border border-line overflow-hidden flex">
+      <div className="relative w-[90vw] h-[90vh] bg-panel border border-line rounded-card overflow-hidden flex">
         {/* 왼쪽 사이드바 (메뉴) */}
         <div className="w-56 flex-shrink-0 bg-panel border-r border-line p-4 flex flex-col">
           {/* 헤더 */}
@@ -358,7 +358,7 @@ export default function SettingsModal({
           {/* 닫기 버튼 */}
           <button
             onClick={onClose}
-            className="mt-4 w-full px-4 py-2 bg-raise border border-line text-strong text-sm hover:bg-raise transition-colors"
+            className="mt-4 w-full px-4 py-2 bg-raise border border-line rounded-card text-strong text-sm hover:bg-raise transition-colors"
           >
             닫기
           </button>

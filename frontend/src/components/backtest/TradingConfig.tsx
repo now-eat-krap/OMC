@@ -97,7 +97,7 @@ export default function TradingConfigPanel({ config, onChange }: TradingConfigPa
               onClick={() => handleChange('leverage', lev)}
               className={`px-3 py-2 text-sm font-medium transition-all ${
                 config.leverage === lev
-                  ? 'bg-wash text-strong border border-accent'
+                  ? 'bg-wash text-strong border border-accent rounded-card'
                   : 'bg-raise text-dim hover:text-muted hover:bg-raise border border-transparent'
               }`}
             >

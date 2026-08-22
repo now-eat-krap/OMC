@@ -91,7 +91,7 @@ export default function ConditionBuilder({
           ))}
         </div>
       ) : (
-        <div className="p-6 border border-dashed border-line text-center">
+        <div className="p-6 border border-dashed border-line rounded-card text-center">
           <p className="text-dim text-sm">아래에서 조건을 추가해주세요</p>
         </div>
       )}

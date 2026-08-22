@@ -36,7 +36,7 @@ function SlotDropdown({
   return (
     <Select.Root value={String(value)} onValueChange={onChange}>
       <Select.Trigger
-        className="inline-flex items-center justify-between gap-1 px-2 py-1 min-w-[70px] bg-raise border border-line 
+        className="inline-flex items-center justify-between gap-1 px-2 py-1 min-w-[70px] bg-raise border border-line rounded-card 
                    text-ink font-medium text-xs cursor-pointer
                    hover:bg-raise hover:border-line
                    focus:outline-none focus:ring-1 focus:ring-white/30
@@ -51,7 +51,7 @@ function SlotDropdown({
 
       <Select.Portal>
         <Select.Content
-          className="overflow-hidden bg-panel backdrop-blur-xl border border-line z-[100]"
+          className="overflow-hidden bg-panel backdrop-blur-xl border border-line rounded-card z-[100]"
           position="popper"
           sideOffset={4}
         >
@@ -102,7 +102,7 @@ function NumberSlot({
       min={min}
       max={max}
       step={step}
-      className={`w-14 px-2 py-1 text-center bg-raise border border-line 
+      className={`w-14 px-2 py-1 text-center bg-raise border border-line rounded-card 
                   text-ink font-medium text-xs
                   hover:bg-raise hover:border-line
                   focus:outline-none focus:ring-1 focus:ring-white/30
@@ -470,7 +470,7 @@ export default function SentenceCondition({
 
   return (
     <div
-      className="group flex items-center gap-1.5 px-3 py-2 bg-raise border border-line  
+      className="group flex items-center gap-1.5 px-3 py-2 bg-raise border border-line rounded-card  
                     hover:bg-line hover:border-line
                     transition-all duration-150"
     >

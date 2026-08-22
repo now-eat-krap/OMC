@@ -95,7 +95,7 @@ export default function AssetConfig({
           <label className="text-sm text-muted">코인/페어</label>
           <button
             onClick={() => setIsAssetModalOpen(true)}
-            className="w-full flex items-center gap-3 bg-raise border border-line px-4 py-3 text-strong hover:bg-raise transition-colors text-left"
+            className="w-full flex items-center gap-3 bg-raise border border-line rounded-card px-4 py-3 text-strong hover:bg-raise transition-colors text-left"
           >
             <Search className="w-5 h-5 text-muted" />
             <span className="flex-1 font-medium">{asset}</span>
@@ -186,7 +186,7 @@ export default function AssetConfig({
                 onClick={() => onTimeFrameChange(tf)}
                 className={`px-3 py-2 text-sm font-medium transition-all ${
                   timeFrame === tf
-                    ? 'bg-wash text-strong border border-accent'
+                    ? 'bg-wash text-strong border border-accent rounded-card'
                     : 'bg-raise text-dim hover:text-muted hover:bg-raise border border-transparent'
                 }`}
               >
@@ -205,7 +205,7 @@ export default function AssetConfig({
             onChange={(e) => onInitialCapitalChange(Number(e.target.value))}
             min={100}
             step={100}
-            className="w-full bg-raise border border-line px-4 py-3 text-strong focus:border-line focus:outline-none transition-colors"
+            className="w-full bg-raise border border-line rounded-card px-4 py-3 text-strong focus:border-line focus:outline-none transition-colors"
             placeholder="1000000"
           />
         </div>

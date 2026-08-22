@@ -36,13 +36,33 @@ function TabButton({ label, active, onClick }: TabButtonProps) {
 }
 
 // 요약 탭 콘텐츠 — 지표를 한 줄로 늘어놓는다
-function SummaryTab({ result }: { result: BacktestResult | null }) {
+function SummaryTab({ result, isRunning }: { result: BacktestResult | null; isRunning?: boolean }) {
+  // 실행 중에는 결과가 들어올 자리와 같은 모양의 자리표시자를 둔다
+  if (isRunning) {
+    return (
+      <div className="flex h-full overflow-hidden">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={index}
+            className={`flex min-w-[160px] flex-1 flex-col justify-center gap-3 px-6 py-5 ${
+              index > 0 ? 'border-l border-line' : ''
+            }`}
+          >
+            <span className="h-3 w-16 animate-pulse rounded-full bg-raise" />
+            <span className="h-8 w-24 animate-pulse rounded-chip bg-raise" />
+            <span className="h-3 w-20 animate-pulse rounded-full bg-raise" />
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   if (!result) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3.5 h-full">
-        <span className="font-mono text-xs tracking-[0.3em] text-dim">NO RESULT</span>
-        <span className="text-sm text-muted">
-          조건을 세우고 <span className="text-accent font-medium">RUN</span>을 누르면 결과가 여기에
+      <div className="flex h-full flex-col items-center justify-center gap-3">
+        <span className="text-[15px] font-medium text-ink">아직 실행하지 않았습니다</span>
+        <span className="text-sm font-light text-muted">
+          조건을 세우고 <span className="font-medium text-accent">실행</span>을 누르면 결과가 여기에
           표시됩니다.
         </span>
       </div>
@@ -58,19 +78,19 @@ function SummaryTab({ result }: { result: BacktestResult | null }) {
 
   const cells: { label: string; value: string; sub: string; tone: string }[] = [
     {
-      label: 'TOTAL RETURN',
+      label: '총 수익률',
       value: `${signed(result.totalReturn)}%`,
       sub: usdt(result.totalReturnUsdt),
       tone: result.totalReturn >= 0 ? 'text-up' : 'text-down',
     },
     {
-      label: 'WIN RATE',
+      label: '승률',
       value: `${result.winRate.toFixed(1)}%`,
-      sub: `${result.profitTrades}W / ${result.lossTrades}L`,
+      sub: `${result.profitTrades}승 ${result.lossTrades}패`,
       tone: 'text-ink',
     },
     {
-      label: 'MAX DRAWDOWN',
+      label: '최대 낙폭',
       value: `-${Math.abs(result.maxDrawdown).toFixed(2)}%`,
       sub:
         result.maxDrawdownUsdt === undefined
@@ -79,21 +99,21 @@ function SummaryTab({ result }: { result: BacktestResult | null }) {
       tone: 'text-down',
     },
     {
-      label: 'SHARPE',
+      label: '샤프 지수',
       value: result.sharpeRatio !== null ? result.sharpeRatio.toFixed(2) : '-',
       sub: '연 환산',
       tone: 'text-ink',
     },
     {
-      label: 'PROFIT FACTOR',
+      label: '수익 팩터',
       value: result.profitFactor.toFixed(2),
       sub: '총이익 / 총손실',
       tone: 'text-ink',
     },
     {
-      label: 'TRADES',
+      label: '거래 횟수',
       value: `${result.totalTrades}`,
-      sub: `수익 ${result.profitTrades} · 손실 ${result.lossTrades}`,
+      sub: `수익 ${result.profitTrades}건, 손실 ${result.lossTrades}건`,
       tone: 'text-ink',
     },
   ]
@@ -103,17 +123,17 @@ function SummaryTab({ result }: { result: BacktestResult | null }) {
       {cells.map((cell, index) => (
         <div
           key={cell.label}
-          className={`flex-1 min-w-[160px] px-5 py-4 flex flex-col gap-2 justify-center ${
+          className={`flex min-w-[160px] flex-1 flex-col justify-center gap-2.5 px-6 py-5 ${
             index > 0 ? 'border-l border-line' : ''
           }`}
         >
-          <span className="label">{cell.label}</span>
+          <span className="text-[13px] font-light text-muted">{cell.label}</span>
           <span
-            className={`font-mono tnum text-[30px] font-medium leading-none tracking-[-0.025em] ${cell.tone}`}
+            className={`tnum text-[32px] font-bold leading-none tracking-[-0.04em] ${cell.tone}`}
           >
             {cell.value}
           </span>
-          <span className="font-mono tnum text-[11px] text-dim">{cell.sub}</span>
+          <span className="tnum text-[12px] font-light text-dim">{cell.sub}</span>
         </div>
       ))}
     </div>
@@ -509,9 +529,9 @@ function TradesTab({
   }
 
   return (
-    <div className="h-full overflow-auto px-4 py-2">
+    <div className="h-full overflow-auto px-6 py-3">
       <table className="w-full text-xs border-collapse">
-        <thead className="sticky top-0 bg-black">
+        <thead className="sticky top-0 bg-panel">
           <tr className="text-muted border-b border-line">
             <th className="text-left py-2 px-2 font-medium">거래</th>
             <th className="text-left py-2 px-2 font-medium">타입</th>
@@ -940,21 +960,21 @@ function StrategyTab({
   onEdit: () => void
 }) {
   const renderSide = (conditions: SentenceCondition[], side: 'buy' | 'sell') => (
-    <div className="flex gap-4 items-start">
+    <div className="flex items-start gap-5">
       <span
-        className={`w-11 shrink-0 pt-1.5 font-mono text-[10px] tracking-[0.2em] ${
+        className={`w-8 shrink-0 pt-1.5 text-[13px] font-semibold ${
           side === 'buy' ? 'text-up' : 'text-down'
         }`}
       >
-        {side === 'buy' ? 'BUY' : 'SELL'}
+        {side === 'buy' ? '매수' : '매도'}
       </span>
       {conditions.length > 0 ? (
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-3">
           {conditions.map((condition, index) => (
-            <span key={condition.id} className="text-[15px] leading-[1.7] text-ink">
+            <span key={condition.id} className="text-[15.5px] font-light leading-[1.8] text-ink">
               {index > 0 && (
-                <span className="font-mono text-[11px] tracking-[0.16em] text-muted pr-2">
-                  {conditions[index - 1].nextOperator || 'AND'}
+                <span className="pr-2 text-[13px] text-muted">
+                  {conditions[index - 1].nextOperator === 'OR' ? '또는' : '그리고'}
                 </span>
               )}
               {formatCondition(condition)}
@@ -962,13 +982,13 @@ function StrategyTab({
           ))}
         </div>
       ) : (
-        <span className="pt-1 text-[15px] text-dim">조건 없음</span>
+        <span className="pt-1 text-[15px] font-light text-dim">조건 없음</span>
       )}
     </div>
   )
 
   return (
-    <div className="h-full overflow-y-auto px-6 py-5 flex flex-col gap-6">
+    <div className="flex h-full flex-col gap-7 overflow-y-auto px-7 py-6">
       {renderSide(buyConditions, 'buy')}
       {renderSide(sellConditions, 'sell')}
 
@@ -988,6 +1008,8 @@ interface TabPanelProps {
   buyConditions: SentenceCondition[]
   sellConditions: SentenceCondition[]
   onEditStrategy: () => void
+  /** 실행 중이면 요약 탭에 자리표시자를 띄운다 */
+  isRunning?: boolean
   /** 차트를 특정 시간으로 스크롤하는 콜백 */
   onScrollToTime?: (isoString: string) => void
   /** 백테스트 설정 (AI 리포트에 전달) */
@@ -1011,6 +1033,7 @@ export default function TabPanel({
   onEditStrategy,
   onScrollToTime,
   backtestConfig,
+  isRunning = false,
 }: TabPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId>('summary')
 
@@ -1025,7 +1048,7 @@ export default function TabPanel({
   const renderContent = (): ReactNode => {
     switch (activeTab) {
       case 'summary':
-        return <SummaryTab result={result} />
+        return <SummaryTab result={result} isRunning={isRunning} />
       case 'equity':
         return <EquityTab result={result} />
       case 'trades':

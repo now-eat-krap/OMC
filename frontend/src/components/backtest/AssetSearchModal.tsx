@@ -119,7 +119,7 @@ export default function AssetSearchModal({
       <div className="absolute inset-0 bg-scrim backdrop-blur-sm" onClick={onClose} />
 
       {/* 모달 */}
-      <div className="relative w-full max-w-lg mx-4 bg-panel border border-line overflow-hidden">
+      <div className="relative w-full max-w-lg mx-4 bg-panel border border-line rounded-card overflow-hidden">
         {/* 검색 헤더 */}
         <div className="p-4 border-b border-line">
           <div className="relative">
@@ -134,7 +134,7 @@ export default function AssetSearchModal({
               }}
               onKeyDown={handleKeyDown}
               placeholder="심볼 또는 이름 검색..."
-              className="w-full bg-raise border border-line pl-10 pr-4 py-3 text-strong placeholder-white/40 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
+              className="w-full bg-raise border border-line rounded-card pl-10 pr-4 py-3 text-strong placeholder-white/40 focus:outline-none focus:border-accent focus:ring-2 focus:ring-accent"
             />
           </div>
         </div>

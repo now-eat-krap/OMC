@@ -318,6 +318,7 @@ export default function BacktestPage() {
               result={result}
               buyConditions={buyConditions}
               sellConditions={sellConditions}
+              isRunning={isRunning}
               onEditStrategy={() => setIsModalOpen(true)}
               onScrollToTime={(isoString) => {
                 // 백테스트 모드로 전환 후 차트 스크롤

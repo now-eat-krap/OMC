@@ -53,7 +53,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
               <select
                 value={block.indicator || 'RSI'}
                 onChange={(e) => handleIndicatorChange(e.target.value as IndicatorType)}
-                className="flex-1 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
+                className="flex-1 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
               >
                 {Object.entries(INDICATOR_LABELS).map(([key, label]) => (
                   <option key={key} value={key} className="bg-panel">
@@ -67,7 +67,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
                 type="number"
                 value={block.params?.period || 14}
                 onChange={(e) => handleParamChange('period', Number(e.target.value))}
-                className="w-20 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
+                className="w-20 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
                 placeholder="기간"
               />
             </div>
@@ -77,7 +77,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
               <select
                 value={block.operator}
                 onChange={(e) => handleOperatorChange(e.target.value as ComparisonOperator)}
-                className="flex-1 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
+                className="flex-1 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
               >
                 {Object.entries(OPERATOR_LABELS).map(([key, label]) => (
                   <option key={key} value={key} className="bg-panel">
@@ -90,7 +90,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
                 type="number"
                 value={block.value}
                 onChange={(e) => handleValueChange(Number(e.target.value))}
-                className="w-24 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
+                className="w-24 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
                 placeholder="값"
               />
             </div>
@@ -105,7 +105,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
               <select
                 value={block.operator}
                 onChange={(e) => handleOperatorChange(e.target.value as ComparisonOperator)}
-                className="flex-1 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
+                className="flex-1 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
               >
                 <option value=">=" className="bg-panel">
                   이상 (익절)
@@ -120,7 +120,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
                   type="number"
                   value={block.value}
                   onChange={(e) => handleValueChange(Number(e.target.value))}
-                  className="w-20 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
+                  className="w-20 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
                   step={1}
                 />
                 <span className="text-muted">%</span>
@@ -136,7 +136,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
               <select
                 value={block.operator}
                 onChange={(e) => handleOperatorChange(e.target.value as ComparisonOperator)}
-                className="flex-1 bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
+                className="flex-1 bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none"
               >
                 <option value="cross_above" className="bg-panel">
                   골든크로스 (상향돌파)
@@ -154,7 +154,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
                   type="number"
                   value={block.params?.shortPeriod || 5}
                   onChange={(e) => handleParamChange('shortPeriod', Number(e.target.value))}
-                  className="w-full bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
+                  className="w-full bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
                 />
               </div>
               <div>
@@ -163,7 +163,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
                   type="number"
                   value={block.params?.longPeriod || 20}
                   onChange={(e) => handleParamChange('longPeriod', Number(e.target.value))}
-                  className="w-full bg-raise border border-line px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
+                  className="w-full bg-raise border border-line rounded-card px-3 py-2 text-sm text-strong focus:border-line focus:outline-none text-center"
                 />
               </div>
             </div>
@@ -192,7 +192,7 @@ export default function ConditionBlockItem({ block, onChange, onDelete }: Condit
   const blockTypeInfo = getBlockTypeLabel()
 
   return (
-    <div className=" border border-line bg-raise p-4">
+    <div className=" border border-line rounded-card bg-raise p-4">
       {/* 블록 헤더 */}
       <div className="flex items-center justify-between mb-3">
         <span className="flex items-center gap-1.5 text-xs font-medium text-muted">
