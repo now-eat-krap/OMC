@@ -2,11 +2,11 @@
 // 워드마크, 자산 검색, 타임프레임, 모드 토글, 테마, 설정, 실행 버튼
 
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { ChevronDown, Loader2, Play, Search, SlidersHorizontal } from 'lucide-react'
 import type { TimeFrame } from './types'
 import { TIMEFRAME_LABELS } from './types'
 import AssetSearchModal from './AssetSearchModal'
+import Logo from '../layout/Logo'
 import ThemeToggle from '../layout/ThemeToggle'
 
 // 타임프레임 목록
@@ -61,14 +61,8 @@ export default function BacktestToolbar({
       />
 
       <div className="flex items-center gap-3 md:gap-6 h-[58px] px-3 md:px-5 border-b border-line bg-canvas overflow-x-auto">
-        {/* 워드마크 (홈으로) */}
-        <Link
-          to="/"
-          title="홈으로 돌아가기"
-          className="text-[15px] font-bold tracking-[-0.01em] text-strong shrink-0 whitespace-nowrap"
-        >
-          One More Coin
-        </Link>
+        {/* 로고 (홈으로) */}
+        <Logo className="shrink-0" />
 
         {/* 자산 선택 */}
         <button

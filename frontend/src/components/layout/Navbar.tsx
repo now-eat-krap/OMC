@@ -1,4 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
+import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
 
 const navItems = [
@@ -18,12 +19,7 @@ export default function Navbar() {
   return (
     <div className="sticky top-0 z-30 flex justify-center px-4 pt-6 pb-2">
       <nav className="flex items-center gap-5 md:gap-8 rounded-full border border-line bg-panel/70 backdrop-blur-xl py-2.5 pl-6 pr-2.5">
-        <Link
-          to="/"
-          className="text-[15px] font-bold tracking-[-0.01em] text-strong whitespace-nowrap"
-        >
-          One More Coin
-        </Link>
+        <Logo />
 
         <div className="hidden md:flex gap-6 text-sm font-light">
           {navItems.map((item) => (

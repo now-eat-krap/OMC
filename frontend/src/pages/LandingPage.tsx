@@ -233,7 +233,7 @@ export default function LandingPage() {
 
         {/* ===== 푸터 ===== */}
         <footer className="flex flex-col items-center justify-between gap-4 px-6 pb-14 text-[13px] font-light text-dim md:flex-row md:px-20">
-          <span>One More Coin</span>
+          <span>OMC</span>
           <div className="flex gap-7">
             <Link to="/guide" className="text-dim transition-colors hover:text-ink">
               가이드
