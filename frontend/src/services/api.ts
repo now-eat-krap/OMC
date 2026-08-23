@@ -113,6 +113,8 @@ export interface BacktestResponse {
 
   totalReturn: number
   totalReturnUsdt?: number // 총 수익액 (USDT)
+  buyHoldReturn?: number // 같은 기간 보유 수익률 (%)
+  buyHoldReturnUsdt?: number // 보유 수익액 (USDT)
   winRate: number
   maxDrawdown: number
   maxDrawdownUsdt?: number // 최대 낙폭액 (USDT)

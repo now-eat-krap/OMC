@@ -41,7 +41,7 @@ function SummaryTab({ result, isRunning }: { result: BacktestResult | null; isRu
   if (isRunning) {
     return (
       <div className="flex h-full overflow-hidden">
-        {Array.from({ length: 6 }).map((_, index) => (
+        {Array.from({ length: 7 }).map((_, index) => (
           <div
             key={index}
             className={`flex min-w-[160px] flex-1 flex-col justify-center gap-3 px-6 py-5 ${
@@ -76,12 +76,24 @@ function SummaryTab({ result, isRunning }: { result: BacktestResult | null; isRu
       ? ''
       : `${value >= 0 ? '+' : ''}${value.toLocaleString(undefined, { maximumFractionDigits: 0 })} USDT`
 
+  const buyHold = result.buyHoldReturn
+
   const cells: { label: string; value: string; sub: string; tone: string }[] = [
     {
       label: '총 수익률',
       value: `${signed(result.totalReturn)}%`,
       sub: usdt(result.totalReturnUsdt),
       tone: result.totalReturn >= 0 ? 'text-up' : 'text-down',
+    },
+    {
+      // 기준선. 전략이 시장을 이겼는지 한눈에 보이게 총 수익률 옆에 둔다
+      label: '그냥 샀다면',
+      value: buyHold === undefined ? '-' : `${signed(buyHold)}%`,
+      sub:
+        buyHold === undefined
+          ? '기준선 없음'
+          : `전략 대비 ${signed(result.totalReturn - buyHold)}%p`,
+      tone: buyHold === undefined ? 'text-ink' : buyHold >= 0 ? 'text-up' : 'text-down',
     },
     {
       label: '승률',
