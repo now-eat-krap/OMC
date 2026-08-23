@@ -9,7 +9,7 @@ import sentry_sdk
 from rq import get_current_job
 
 from app.schemas import BacktestRequest
-from app.services.backtest import BacktestEngine
+from app.services.backtest.engine import BacktestEngine
 
 logger = logging.getLogger(__name__)
 
