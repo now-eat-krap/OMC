@@ -146,8 +146,8 @@ export default function LandingPage() {
                 문장으로 씁니다
               </h2>
               <p className="text-[15.5px] font-extralight leading-[2] text-muted">
-                매수와 매도를 따로 세우고 AND와 OR로 엮습니다. 조건을 바꾸면 신호 개수가 어떻게
-                달라지는지 실행 전에 보여줍니다.
+                매수와 매도를 따로 세우고 AND와 OR로 엮습니다. 익절과 손절도 같은 문장으로
+                들어갑니다.
               </p>
             </div>
           </Tray>
@@ -164,10 +164,11 @@ export default function LandingPage() {
             <Tray className="flex-1">
               <div className="flex h-full items-center justify-between gap-6 px-9 py-8">
                 <p className="max-w-[300px] text-sm font-extralight leading-[1.9] text-muted">
-                  조건을 바꾸면 최근 6개월 신호 개수가 함께 움직입니다.
+                  지표 비교, 교차, 익절·손절, 밴드, 캔들 패턴, 거래량. 조건 템플릿 열 가지를
+                  말로 적어도 됩니다. AI가 위 문장으로 바꿔 줍니다.
                 </p>
                 <span className="tnum text-[52px] font-bold leading-none tracking-[-0.05em] text-accent">
-                  14
+                  10
                 </span>
               </div>
             </Tray>
