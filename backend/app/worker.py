@@ -16,7 +16,9 @@ import logging
 import os
 
 from rq import Worker
+from sentry_sdk.integrations.rq import RqIntegration
 
+from app.core.sentry import init_sentry
 from app.rq_app import queue, redis_conn
 from app.services.scheduler import warmup_numba_jit
 
@@ -28,6 +30,10 @@ def main() -> None:
         level=os.getenv("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     )
+
+    # 워커 프로세스는 API와 별개로 뜨므로 Sentry도 여기서 따로 초기화한다.
+    # RqIntegration이 작업 실패를 자동으로 잡고 작업 단위 트랜잭션을 만든다.
+    init_sentry("rq-worker", integrations=[RqIntegration()])
 
     logger.info("Numba JIT 워밍업 시작 (fork 이전)...")
     asyncio.run(warmup_numba_jit())

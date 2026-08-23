@@ -24,6 +24,8 @@ x-common-env: &common-env
   PYTHONUNBUFFERED: 1
   PYTHONDONTWRITEBYTECODE: 1
   NUMBA_CACHE_DIR: /app/.numba_cache
+  SENTRY_DSN: ${SENTRY_DSN:-} # 비어 있으면 Sentry 비활성화
+  DEBUG: ${DEBUG:-false} # Sentry environment 태그 구분용
 
 services:
   # ===========================================================================
