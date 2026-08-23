@@ -12,7 +12,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.core.sentry import init_sentry
-from app.routers import ai, assets, backtest
+from app.routers import ai, assets, backtest, indicators
 from app.services.scheduler import lifespan
 
 # Sentry 초기화 (SENTRY_DSN이 있을 때만 동작)
@@ -69,6 +69,7 @@ app.add_middleware(
 app.include_router(assets.router, prefix="/api", tags=["Assets"])
 app.include_router(backtest.router, prefix="/api", tags=["Backtest"])
 app.include_router(ai.router, prefix="/api", tags=["AI"])
+app.include_router(indicators.router, prefix="/api", tags=["Indicators"])
 
 
 @app.get("/health")
