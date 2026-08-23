@@ -229,13 +229,17 @@ class DataService:
             since = None
             if warmup_start_date:
                 since = int(datetime.strptime(warmup_start_date, "%Y-%m-%d").timestamp() * 1000)
+            end_ms = None
+            if end_date:
+                # end_date 당일 포함
+                end_ms = int(
+                    (datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)).timestamp() * 1000
+                )
 
-            ohlcv = self.exchange.fetch_ohlcv(
-                symbol=symbol,
-                timeframe=timeframe,
-                since=since,
-                limit=limit,
-            )
+            # end_date 가 있으면 거기까지 전부 받는다. limit 은 끝이 정해지지 않았을 때의
+            # 개수 상한일 뿐, 기간이 정해진 요청을 자르는 기준이 아니다
+            max_candles = self._MAX_CANDLES if end_ms is not None else limit
+            ohlcv = self._fetch_ohlcv_paged(symbol, timeframe, since, end_ms, max_candles)
 
             df = pd.DataFrame(
                 ohlcv, columns=["timestamp", "open", "high", "low", "close", "volume"]
@@ -251,3 +255,47 @@ class DataService:
 
         except Exception as e:
             raise Exception(f"DataFrame 변환 실패: {str(e)}") from e
+
+    # Binance 가 한 번에 돌려주는 캔들 상한
+    _BINANCE_PAGE = 1000
+    # 기간이 정해진 요청의 안전 상한 (15분봉 10년 ≈ 35만 개)
+    _MAX_CANDLES = 400_000
+
+    def _fetch_ohlcv_paged(
+        self,
+        symbol: str,
+        timeframe: str,
+        since: int | None,
+        end_ms: int | None,
+        max_candles: int,
+    ) -> list[list]:
+        """since 부터 end_ms(또는 max_candles)까지 1000개씩 이어 받는다
+
+        Binance 는 호출당 1000개가 상한이라 limit 에 2000 을 넘겨도 1000개만 온다.
+        예전에는 fetch_ohlcv(since, limit=1000+warmup) 한 번으로 끝내서, warmup 이
+        1000봉일 때 warmup 구간만 받고 정작 요청 기간이 통째로 잘렸다 (→ 조건이 맞아도
+        거래 0건에 "정상 완료"). 캐시가 있는 코인·타임프레임에서는 안 보이고, 콜드
+        스타트나 목록 밖 코인에서만 드러나던 문제다.
+        """
+        out: list[list] = []
+        cursor = since
+        while len(out) < max_candles:
+            page = self.exchange.fetch_ohlcv(
+                symbol=symbol,
+                timeframe=timeframe,
+                since=cursor,
+                limit=min(self._BINANCE_PAGE, max_candles - len(out)),
+            )
+            if not page:
+                break
+            out.extend(page)
+            last_ts = page[-1][0]
+            if end_ms is not None and last_ts >= end_ms:
+                break
+            if len(page) < self._BINANCE_PAGE:
+                break  # 마지막 페이지
+            next_cursor = last_ts + 1
+            if cursor is not None and next_cursor <= cursor:
+                break  # 진행이 없으면 무한 루프 방지
+            cursor = next_cursor
+        return out
