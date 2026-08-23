@@ -140,7 +140,28 @@ function SummaryTab({ result, isRunning }: { result: BacktestResult | null; isRu
   )
 }
 
-// 수익곡선 탭 콘텐츠 (거래 기반 lightweight-charts - 거래 청산 시점만 표시)
+// 초기 자본. 서버 수익 곡선의 첫 점이 곧 시작 자산이다.
+// (곡선이 없으면 첫 거래의 진입 금액으로 추정한다 - 옛 응답 호환)
+function getInitialCapital(result: BacktestResult): number {
+  const first = result.equityCurve?.[0]?.value
+  if (first && first > 0) return first
+  const t = result.trades?.[0]
+  return t ? (t.size || 0) * (t.entryPrice || 0) : 0
+}
+
+// 백엔드 날짜 문자열("2025-10-17T00:00:00" 또는 "2025-10-17 00:00:00")을 UTC 초로.
+// 타임존 표기가 없으면 UTC 로 간주한다
+function toUtcTimestamp(dateStr: string): number {
+  const iso = dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr
+  if (iso.endsWith('Z') || iso.includes('+')) {
+    return new Date(iso).getTime() / 1000
+  }
+  return new Date(`${iso}Z`).getTime() / 1000
+}
+
+// 수익곡선 탭 콘텐츠
+// 곡선은 서버가 봉마다 계산한 포트폴리오 가치(equityCurve)를 그대로 그린다.
+// 거래 청산 시점은 그 위에 런업/드로다운 히스토그램과 호버 정보로 얹는다
 function EquityTab({ result }: { result: BacktestResult | null }) {
   const { theme } = useTheme()
   const chartContainerRef = useRef<HTMLDivElement>(null)
@@ -155,100 +176,49 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     drawdown?: number
   } | null>(null)
 
-  // 거래 기반 수익곡선 데이터 생성
+  // 서버 수익 곡선 + 거래 청산 시점 매핑
   const { equityData, stats } = useMemo(() => {
-    if (!result?.trades || result.trades.length === 0) {
+    const curve = result?.equityCurve ?? []
+    if (!result || curve.length < 2) {
       return { equityData: [], stats: null }
     }
 
-    // 초기 자본 (첫 거래의 cumulativePnl에서 pnl을 빼면 이전 자산)
-    // equityCurve에서 초기값을 가져오거나, 없으면 계산
-    const initialCapital =
-      result.equityCurve?.[0]?.value ??
-      (result.trades[0].cumulativePnl !== undefined
-        ? (result.trades[0].cumulativePnl || 0) -
-          (result.trades[0].pnl || 0) +
-          (result.trades[0].pnl >= 0 ? 0 : 0)
-        : 1000000)
+    const initialCapital = getInitialCapital(result)
 
-    const firstTrade = result.trades[0]
-
-    // 시작점 (첫 거래 진입 시점) 추가
-    const data: {
-      time: number
-      value: number
-      tradeNum: number
-      date: string
-      runup: number
-      drawdown: number
-    }[] = []
-
-    // ISO 문자열을 UTC 타임스탬프(초)로 변환하는 헬퍼
-    // 백엔드에서 "2025-10-17T00:00:00" 형식으로 보내면 UTC로 해석
-    const toUtcTimestamp = (dateStr: string): number => {
-      // 이미 Z나 +로 끝나면 그대로 파싱
-      if (dateStr.endsWith('Z') || dateStr.includes('+')) {
-        return new Date(dateStr).getTime() / 1000
-      }
-      // 그렇지 않으면 UTC로 간주하여 'Z' 추가
-      return new Date(`${dateStr}Z`).getTime() / 1000
-    }
-
-    // 초기 자본 포인트 (첫 거래 진입 시점)
-    if (firstTrade.entryTime) {
-      const entryTimestamp = toUtcTimestamp(firstTrade.entryTime)
-      data.push({
-        time: entryTimestamp,
-        value: initialCapital,
-        tradeNum: 0,
-        date: firstTrade.entryTime,
-        runup: 0,
-        drawdown: 0,
-      })
-    }
-
-    // 각 거래의 청산 시점을 포인트로 추가
-    result.trades.forEach((trade, index) => {
-      // 미실현 거래는 청산 시점이 없으므로 진입 시점 사용
+    // 거래 청산 시점(미청산이면 진입 시점)을 봉 시각으로 매핑
+    const tradeAtTime = new Map<number, { tradeNum: number; runup: number; drawdown: number }>()
+    ;(result.trades ?? []).forEach((trade, index) => {
       const timeStr = trade.isOpen ? trade.entryTime : trade.exitTime
-      if (!timeStr) {
-        return
-      }
-
-      const timestamp = toUtcTimestamp(timeStr)
-      const equityValue = initialCapital + (trade.cumulativePnl || 0)
-
-      data.push({
-        time: timestamp,
-        value: equityValue,
+      if (!timeStr) return
+      tradeAtTime.set(Math.floor(toUtcTimestamp(timeStr)), {
         tradeNum: index + 1,
-        date: timeStr,
         runup: trade.runup || 0,
         drawdown: trade.drawdown || 0,
       })
     })
 
-    // 시간순 정렬
-    data.sort((a, b) => a.time - b.time)
+    const data = curve.map((point) => {
+      const time = Math.floor(toUtcTimestamp(point.date))
+      const trade = tradeAtTime.get(time)
+      return {
+        time,
+        value: point.value,
+        date: point.date,
+        tradeNum: trade?.tradeNum ?? 0,
+        runup: trade?.runup ?? 0,
+        drawdown: trade?.drawdown ?? 0,
+      }
+    })
 
-    if (data.length === 0) {
-      return { equityData: [], stats: null }
-    }
+    const finalValue = data[data.length - 1].value
 
-    const values = data.map((d) => d.value)
-    const finalValue = values[values.length - 1]
-
-    // 최대 낙폭 계산
+    // 최대 낙폭 (봉 단위 - 거래 사이의 미실현 하락도 잡힌다)
     let maxDrawdown = 0
-    let peak = values[0]
-    for (const value of values) {
-      if (value > peak) {
-        peak = value
-      }
-      const drawdown = ((peak - value) / peak) * 100
-      if (drawdown > maxDrawdown) {
-        maxDrawdown = drawdown
-      }
+    let peak = data[0].value
+    for (const { value } of data) {
+      if (value > peak) peak = value
+      const drawdown = peak > 0 ? ((peak - value) / peak) * 100 : 0
+      if (drawdown > maxDrawdown) maxDrawdown = drawdown
     }
 
     return {
@@ -256,9 +226,9 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
       stats: {
         initialValue: initialCapital,
         finalValue,
-        totalReturn: ((finalValue - initialCapital) / initialCapital) * 100,
+        totalReturn: initialCapital > 0 ? ((finalValue - initialCapital) / initialCapital) * 100 : 0,
         maxDrawdown,
-        totalTrades: result.trades.length,
+        totalTrades: result.trades?.length ?? 0,
       },
     }
   }, [result])
@@ -370,9 +340,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
         return
       }
 
-      const dataPoint = equityData.find(
-        (p) => Math.floor(p.time) === Math.floor(param.time as number)
-      )
+      const dataPoint = equityData.find((p) => p.time === Math.floor(param.time as number))
 
       if (dataPoint) {
         const pnl = dataPoint.value - stats.initialValue
@@ -425,7 +393,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     }
   }, [equityData, stats, theme])
 
-  if (!result?.trades || result.trades.length === 0 || !stats) {
+  if (!stats || equityData.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-dim text-sm gap-2">
         <TrendingUp className="w-4 h-4" />
@@ -441,7 +409,8 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
         {hoverInfo ? (
           <div className="flex flex-col gap-1">
             <span className="text-muted">
-              {hoverInfo.tradeNum === 0 ? '시작' : `거래 #${hoverInfo.tradeNum}`} · {hoverInfo.date}
+              {hoverInfo.tradeNum > 0 ? `거래 #${hoverInfo.tradeNum} · ` : ''}
+              {hoverInfo.date}
             </span>
             <div className="flex items-center gap-3">
               <span className="text-strong">자산: ${hoverInfo.value.toLocaleString()}</span>
@@ -645,19 +614,7 @@ function TradesTab({
                   </div>
                   <div className="text-[10px]">
                     {(() => {
-                      // 초기자본 계산: 첫 거래의 cumulativePnl - pnl = 이전 자산 (= 초기자본)
-                      const firstTrade = result.trades?.[0]
-                      const initialCapital = firstTrade
-                        ? (firstTrade.cumulativePnl || 0) -
-                            (firstTrade.pnl || 0) +
-                            (firstTrade.pnl >= 0 ? 0 : 0) || 1000000
-                        : 1000000
-                      // 첫 거래의 경우 초기자본 = 진입금액 * 수량으로 추정
-                      const capital =
-                        firstTrade && initialCapital === 0
-                          ? (firstTrade.size || 0) * firstTrade.entryPrice
-                          : initialCapital ||
-                            (firstTrade?.size || 0) * (firstTrade?.entryPrice || 0)
+                      const capital = getInitialCapital(result)
                       const pnlPercent =
                         capital > 0 ? ((trade.cumulativePnl || 0) / capital) * 100 : 0
                       return `${pnlPercent >= 0 ? '+' : ''}${formatNumber(pnlPercent)}%`
