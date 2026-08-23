@@ -1,6 +1,6 @@
 # =============================================================================
 # Docker Compose 설정 파일 (공통 베이스)
-# 백테스팅 서비스: Frontend(Nginx) + Backend(FastAPI) + Redis + RQ Worker
+# 백테스팅 서비스: Frontend(Nginx) + Backend(FastAPI) + Redis + RQ Worker + RQ Cron
 # =============================================================================
 #
 # 사용법:
@@ -109,6 +109,27 @@ services:
         condition: service_healthy
     volumes:
       - numba_cache:/app/.numba_cache
+    networks:
+      - backtesting-network
+
+  # ===========================================================================
+  # RQ Cron - 주기 작업 스케줄러
+  # ===========================================================================
+  # 정해진 시각에 작업을 큐에 넣기만 한다. 실행은 rq-worker가 한다.
+  # 리더 선출이 없으므로 이 서비스는 항상 1개여야 한다 (app/cron.py 주석 참고)
+  # ===========================================================================
+  rq-cron:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backtesting-rq-cron
+    restart: unless-stopped
+    command: python -m app.cron
+    environment:
+      <<: *common-env
+    depends_on:
+      redis:
+        condition: service_healthy
     networks:
       - backtesting-network
 

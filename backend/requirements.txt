@@ -10,7 +10,6 @@ numpy>=1.21.0,<1.24.0
 vectorbt>=0.26.0
 python-dotenv>=1.0.0
 redis>=5.0.0  # Redis 캐시용
-apscheduler>=3.10.0  # 스케줄러
 numba>=0.56.0,<0.57.0  # JIT 컴파일 최적화 (vectorbt 호환)
 openai>=1.0.0  # AI 전략 생성용
 slowapi>=0.1.9  # Rate limiting
