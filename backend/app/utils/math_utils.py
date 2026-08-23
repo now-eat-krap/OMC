@@ -17,6 +17,10 @@ def safe_float(value, default: float = 0.0) -> float:
     if value is None:
         return default
     try:
+        # numpy 스칼라나 1원소 Series 는 item() 으로 파이썬 스칼라를 꺼낸다.
+        # float(Series) 는 pandas 에서 폐기 예정이라 다음 메이저에서 TypeError 가 된다
+        if hasattr(value, "item") and not isinstance(value, (int, float)):
+            value = value.item()
         f = float(value)
         if math.isnan(f) or math.isinf(f):
             return default
