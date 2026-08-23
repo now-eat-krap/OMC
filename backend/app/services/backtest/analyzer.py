@@ -145,6 +145,11 @@ class ResultAnalyzer:
         Returns:
             [{date, value}, ...] 리스트
         """
+        # DataFrame 이 들어오면 items() 가 열을 순회해 곡선이 한 점으로 뭉개진다.
+        # 호출부가 Series 를 넘기는 게 원칙이지만 여기서도 한 번 막는다
+        if isinstance(equity, pd.DataFrame):
+            equity = equity.iloc[:, 0]
+
         result = []
         for ts, val in equity.items():
             # 인덱스 타입에 따라 처리 (문자열이면 그대로, datetime이면 isoformat)
