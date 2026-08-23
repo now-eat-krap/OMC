@@ -3,38 +3,58 @@
 
 import type { SentenceCondition } from './types'
 import {
+  BAND_TYPE_LABELS,
   COMPARISON_LABELS,
   CROSS_DIRECTION_LABELS,
   PRICE_TYPE_LABELS,
   PROFIT_DIRECTION_LABELS,
 } from './types'
 
+// "RSI(14)", "MACD(12,26,9)". params 가 있으면 전부, 없으면 옛 기간 필드
+function ind(name: string | undefined, params: Record<string, number> | undefined, legacyPeriod: number | undefined): string {
+  const args =
+    params && Object.keys(params).length > 0
+      ? Object.values(params).join(',')
+      : legacyPeriod !== undefined
+        ? String(legacyPeriod)
+        : ''
+  return `${name ?? ''}(${args})`
+}
+
 export function formatCondition(condition: SentenceCondition): string {
   switch (condition.templateType) {
     case 'indicator_vs_value':
-      return `${condition.indicator}(${condition.indicatorPeriod}) ${
+      return `${ind(condition.indicator, condition.params, condition.indicatorPeriod)} ${
         COMPARISON_LABELS[condition.comparison || 'lt']?.replace(' 때', '') || ''
       } ${condition.value}`
     case 'indicator_cross':
-      return `${condition.indicator}(${condition.indicatorPeriod}) ${
+      return `${ind(condition.indicator, condition.params, condition.indicatorPeriod)} ${
         CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']
-      } 돌파 ${condition.targetIndicator}(${condition.targetPeriod})`
+      } 돌파 ${ind(condition.targetIndicator, condition.targetParams, condition.targetPeriod)}`
     case 'price_cross':
       return `${PRICE_TYPE_LABELS[condition.priceType || 'close']} ${
         CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']
-      } 돌파 ${condition.targetIndicator}(${condition.targetPeriod})`
+      } 돌파 ${ind(condition.targetIndicator, condition.targetParams, condition.targetPeriod)}`
     case 'profit_loss':
       return `진입가 대비 ${condition.value}% ${
         PROFIT_DIRECTION_LABELS[condition.profitDirection || 'profit']
       }`
-    case 'band_touch':
-      return `${PRICE_TYPE_LABELS[condition.priceType || 'low']} BB ${
-        condition.bandPosition === 'upper' ? '상단' : '하단'
-      } 터치`
+    case 'band_touch': {
+      const band = BAND_TYPE_LABELS[condition.bandType || 'bollinger'] || 'BB'
+      const pos = { upper: '상단', middle: '중간', lower: '하단' }[condition.bandPosition || 'lower']
+      const touch = { touch: '터치', cross: '돌파', exit: '이탈' }[condition.touchType || 'touch']
+      return `${PRICE_TYPE_LABELS[condition.priceType || 'low']} ${band}${
+        condition.indicatorPeriod ? `(${condition.indicatorPeriod})` : ''
+      } ${pos} ${touch}`
+    }
     case 'macd_signal':
-      return `MACD ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} 시그널`
+      return `${ind('MACD', condition.params, undefined)} ${
+        CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']
+      } 시그널`
     case 'stochastic':
-      return `스토캐스틱 %K ${CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']} %D`
+      return `스토캐스틱${condition.params ? `(${Object.values(condition.params).join(',')})` : ''} %K ${
+        CROSS_DIRECTION_LABELS[condition.crossDirection || 'above']
+      } %D`
     case 'candle_pattern':
       return `${condition.candlePattern || 'hammer'} 패턴`
     case 'volume':

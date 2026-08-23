@@ -147,7 +147,11 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
       const oscillator: IndicatorData[] = []
 
       indicators.forEach((ind) => {
-        if (ind.type === 'rsi' || ind.type === 'macd' || ind.type === 'stoch') {
+        // 서버 레지스트리의 display 가 있으면 그걸로, 없으면(옛 응답) type 으로 가른다
+        const isPane = ind.display
+          ? ind.display === 'pane'
+          : ind.type === 'rsi' || ind.type === 'macd' || ind.type === 'stoch'
+        if (isPane) {
           oscillator.push(ind)
         } else {
           price.push(ind)
@@ -520,7 +524,9 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           ? colorVariants[colorIndex % colorVariants.length]
           : INDICATOR_COLORS[indicator.type] || '#ffffff'
 
-        if (indicator.type === 'sma' || indicator.type === 'ema') {
+        // 밴드(상·하단)가 없는 오버레이 지표는 전부 한 줄 선. 종류가 늘어도 여기로 온다
+        const isBand = Boolean(indicator.upperBand && indicator.lowerBand)
+        if (!isBand) {
           const lineSeries = chart.addSeries(
             LineSeries,
             {
@@ -540,8 +546,8 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           lineSeries.setData(lineData)
         }
 
-        // 볼린저밴드 (TradingView 스타일)
-        if (indicator.type === 'bb' && indicator.upperBand && indicator.lowerBand) {
+        // 밴드형 (볼린저 / 켈트너 / 엔벨로프): 상·중·하 세 선
+        if (isBand && indicator.upperBand && indicator.lowerBand) {
           // 중간선 (SMA) - 파란색
           const middleSeries = chart.addSeries(
             LineSeries,
@@ -600,8 +606,11 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
       oscillatorIndicators.forEach((indicator) => {
         const color = INDICATOR_COLORS[indicator.type] || '#ffffff'
 
-        // RSI - Pane 1
-        if (indicator.type === 'rsi') {
+        const hasMacdShape = Boolean(indicator.signalLine && indicator.histogram)
+        const hasStochShape = Boolean(indicator.kLine && indicator.dLine)
+
+        // 단일 선 오실레이터 (RSI 등) - Pane 1. 보조선은 levels(조건 값) 또는 옛 RSI 필드
+        if (!hasMacdShape && !hasStochShape) {
           const rsiSeries = chart.addSeries(
             LineSeries,
             {
@@ -620,39 +629,33 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
 
           rsiSeries.setData(rsiData)
 
-          // 과매수/과매도 라인 (동적 값 사용, 기본값 70/30)
-          const overboughtLevel = indicator.rsiOverbought ?? 70
-          const oversoldLevel = indicator.rsiOversold ?? 30
-
-          const overBought = chart.addSeries(
-            LineSeries,
-            {
-              color: palette.text,
-              lineWidth: 2,
-              lineStyle: 0,
-              priceLineVisible: false,
-              lastValueVisible: false,
-            },
-            1
-          )
-          overBought.setData(rsiData.map((d) => ({ ...d, value: overboughtLevel })))
-
-          const overSold = chart.addSeries(
-            LineSeries,
-            {
-              color: palette.text,
-              lineWidth: 2,
-              lineStyle: 0,
-              priceLineVisible: false,
-              lastValueVisible: false,
-            },
-            1
-          )
-          overSold.setData(rsiData.map((d) => ({ ...d, value: oversoldLevel })))
+          // 보조 수평선: 레지스트리 levels(조건에서 뽑은 값) > 옛 RSI 필드 > RSI 면 70/30
+          const levels =
+            indicator.levels && indicator.levels.length > 0
+              ? indicator.levels
+              : indicator.rsiOverbought !== undefined || indicator.rsiOversold !== undefined
+                ? [indicator.rsiOverbought ?? 70, indicator.rsiOversold ?? 30]
+                : indicator.type === 'rsi'
+                  ? [70, 30]
+                  : []
+          levels.forEach((level) => {
+            const line = chart.addSeries(
+              LineSeries,
+              {
+                color: palette.text,
+                lineWidth: 2,
+                lineStyle: 0,
+                priceLineVisible: false,
+                lastValueVisible: false,
+              },
+              1
+            )
+            line.setData(rsiData.map((d) => ({ ...d, value: level })))
+          })
         }
 
-        // MACD - Pane 1 (TradingView 스타일)
-        if (indicator.type === 'macd' && indicator.signalLine && indicator.histogram) {
+        // 선 + 시그널 + 히스토그램 (MACD 류) - Pane 1 (TradingView 스타일)
+        if (hasMacdShape && indicator.signalLine && indicator.histogram) {
           // MACD선 (파란색)
           const macdLine = chart.addSeries(
             LineSeries,
@@ -661,7 +664,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
               lineWidth: 2,
               priceLineVisible: false,
               lastValueVisible: true,
-              title: 'MACD',
+              title: indicator.name,
             },
             1
           )
@@ -719,8 +722,8 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           histogram.setData(histData)
         }
 
-        // 스토캐스틱 - Pane 1
-        if (indicator.type === 'stoch' && indicator.kLine && indicator.dLine) {
+        // %K / %D 두 선 (스토캐스틱 류) - Pane 1
+        if (hasStochShape && indicator.kLine && indicator.dLine) {
           const kSeries = chart.addSeries(
             LineSeries,
             {

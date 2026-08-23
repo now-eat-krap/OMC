@@ -13,13 +13,36 @@ export interface TradingConfig {
 }
 
 // 지표 타입
-export type IndicatorType =
-  | 'RSI'
-  | 'MACD'
-  | 'SMA'
-  | 'EMA'
-  | 'BB' // 볼린저밴드
-  | 'STOCH' // 스토캐스틱
+// 지표 이름. 목록은 서버 레지스트리(GET /api/indicators)가 정한다.
+// 여기 나열한 건 타입 힌트용이고, 새 지표가 추가되면 string 으로 들어온다
+export type IndicatorType = 'RSI' | 'MACD' | 'SMA' | 'EMA' | 'BB' | 'KELTNER' | 'ENVELOPE' | 'STOCH' | (string & {})
+
+// 서버 레지스트리의 지표 정의 (GET /api/indicators)
+export interface IndicatorParamSpec {
+  name: string
+  label: string
+  default: number
+  min: number
+  max: number
+  step: number
+  integer: boolean
+}
+export interface IndicatorOutputSpec {
+  key: string
+  label: string
+  role: 'line' | 'band_upper' | 'band_middle' | 'band_lower' | 'signal' | 'histogram' | 'k' | 'd'
+}
+export interface IndicatorSpec {
+  name: string
+  label: string
+  description: string
+  display: 'overlay' | 'pane'
+  valueRange: [number, number] | null
+  templates: string[]
+  bandType: string | null
+  params: IndicatorParamSpec[]
+  outputs: IndicatorOutputSpec[]
+}
 
 // 비교 연산자 타입
 export type ComparisonOperator = '>' | '<' | '>=' | '<=' | '==' | 'cross_above' | 'cross_below'
@@ -87,9 +110,16 @@ export interface IndicatorDataPoint {
 // 지표 데이터 (차트 오버레이용)
 export interface IndicatorData {
   name: string
-  type: 'sma' | 'ema' | 'rsi' | 'macd' | 'bb' | 'stoch'
+  // 옛 표시 힌트. 새 코드는 display/역할별 배열 유무로 그린다
+  type: 'sma' | 'ema' | 'rsi' | 'macd' | 'bb' | 'stoch' | (string & {})
   period: number
   data: IndicatorDataPoint[]
+  // 레지스트리 메타 (백엔드 #49 이후)
+  indicator?: string
+  params?: Record<string, number>
+  display?: 'overlay' | 'pane'
+  valueRange?: [number, number] | null
+  levels?: number[] | null
   // 다중 라인 지표용
   upperBand?: IndicatorDataPoint[]
   lowerBand?: IndicatorDataPoint[]
@@ -162,13 +192,15 @@ export const DEFAULT_TRADING_CONFIG: TradingConfig = {
   leverage: 1,
 }
 
-// 지표 표시 이름
-export const INDICATOR_LABELS: Record<IndicatorType, string> = {
+// 지표 표시 이름 (옛 블록형 UI 용. 문장형 UI 는 서버 레지스트리의 label 을 쓴다)
+export const INDICATOR_LABELS: Record<string, string> = {
   RSI: 'RSI (상대강도지수)',
   MACD: 'MACD',
   SMA: 'SMA (단순이동평균)',
   EMA: 'EMA (지수이동평균)',
   BB: '볼린저밴드',
+  KELTNER: '켈트너채널',
+  ENVELOPE: '엔벨로프',
   STOCH: '스토캐스틱',
 }
 
@@ -205,9 +237,12 @@ export interface SentenceCondition {
   templateType: SentenceTemplateType
   // 기본 슬롯
   indicator?: IndicatorType
-  indicatorPeriod?: number
+  indicatorPeriod?: number // 옛 필드. params 가 없을 때 첫 파라미터(기간)로 해석된다
   targetIndicator?: IndicatorType
-  targetPeriod?: number
+  targetPeriod?: number // 옛 필드
+  // 지표 파라미터. 키는 서버 레지스트리가 정한다 (RSI {period}, MACD {fast,slow,signal} ...)
+  params?: Record<string, number>
+  targetParams?: Record<string, number> // indicator_cross 의 상대 지표용
   comparison?: 'gt' | 'lt' | 'gte' | 'lte'
   crossDirection?: 'above' | 'below'
   value?: number

@@ -1,15 +1,20 @@
 // 문장형 조건 컴포넌트
 // 드롭다운 슬롯을 문장 구조에 배치하여 자연어처럼 조건 설정
 
+import { Fragment } from 'react'
 import { X, ChevronDown, Check } from 'lucide-react'
 import * as Select from '@radix-ui/react-select'
-import type { SentenceCondition as SentenceConditionType, IndicatorType } from './types'
+import type {
+  SentenceCondition as SentenceConditionType,
+  IndicatorType,
+  IndicatorSpec,
+} from './types'
+import { findBandSpec, findSpec, resolveParams, useIndicators } from '../../hooks/useIndicators'
 import {
   COMPARISON_LABELS,
   PRICE_TYPE_LABELS,
   CROSS_DIRECTION_LABELS,
   PROFIT_DIRECTION_LABELS,
-  BAND_TYPE_LABELS,
   BAND_POSITION_LABELS,
   TOUCH_TYPE_LABELS,
   CANDLE_PATTERN_LABELS,
@@ -86,6 +91,7 @@ function NumberSlot({
   max,
   step = 1,
   className = '',
+  title,
 }: {
   value: number
   onChange: (value: number) => void
@@ -93,6 +99,7 @@ function NumberSlot({
   max?: number
   step?: number
   className?: string
+  title?: string
 }) {
   return (
     <input
@@ -102,6 +109,7 @@ function NumberSlot({
       min={min}
       max={max}
       step={step}
+      title={title}
       className={`w-14 px-2 py-1 text-center bg-raise border border-line rounded-card 
                   text-ink font-medium text-xs
                   hover:bg-raise hover:border-line
@@ -113,16 +121,49 @@ function NumberSlot({
   )
 }
 
+// 지표 파라미터 슬롯: 스펙이 알려주는 개수만큼 숫자 칸을 그린다 (RSI 1개, MACD 3개, BB 2개)
+function ParamSlots({
+  spec,
+  params,
+  legacyPeriod,
+  onChange,
+}: {
+  spec: IndicatorSpec | undefined
+  params: Record<string, number> | undefined
+  legacyPeriod: number | undefined
+  onChange: (next: Record<string, number>) => void
+}) {
+  if (!spec) return null
+  const resolved = resolveParams(spec, params, legacyPeriod)
+  return (
+    <>
+      <span className="text-muted">(</span>
+      {spec.params.map((p, i) => (
+        <Fragment key={p.name}>
+          {i > 0 && <span className="text-dim">,</span>}
+          <NumberSlot
+            value={resolved[p.name]}
+            min={p.min}
+            max={p.max}
+            step={p.step}
+            title={p.label}
+            onChange={(v) => onChange({ ...resolved, [p.name]: v })}
+          />
+        </Fragment>
+      ))}
+      <span className="text-muted">)</span>
+    </>
+  )
+}
+
+// 템플릿에서 고를 수 있는 지표 선택지 (서버 레지스트리의 templates 로 거른다)
+function indicatorOptionsFor(specs: IndicatorSpec[], template: string) {
+  return specs
+    .filter((s) => s.templates.includes(template) && !s.bandType)
+    .map((s) => ({ value: s.name, label: s.label === s.name ? s.name : `${s.name} · ${s.label}` }))
+}
+
 // 각종 옵션 정의
-
-// 값 비교에 적합한 지표만 (RSI만 - 다른 지표는 별도 템플릿 사용)
-const indicatorOptionsForValue = [{ value: 'RSI', label: 'RSI' }]
-
-// 크로스 비교에 적합한 지표 (이동평균)
-const indicatorOptionsForCross = [
-  { value: 'SMA', label: 'SMA' },
-  { value: 'EMA', label: 'EMA' },
-]
 
 const comparisonOptions = Object.entries(COMPARISON_LABELS).map(([value, label]) => ({
   value,
@@ -144,10 +185,6 @@ const profitDirectionOptions = Object.entries(PROFIT_DIRECTION_LABELS).map(([val
   label,
 }))
 
-const bandTypeOptions = Object.entries(BAND_TYPE_LABELS).map(([value, label]) => ({
-  value,
-  label,
-}))
 
 const bandPositionOptions = Object.entries(BAND_POSITION_LABELS).map(([value, label]) => ({
   value,
@@ -176,12 +213,49 @@ export default function SentenceCondition({
   onChange,
   onDelete,
 }: SentenceConditionProps) {
+  const specs = useIndicators()
+
   const updateSlot = <K extends keyof SentenceConditionType>(
     key: K,
     value: SentenceConditionType[K]
   ) => {
     onChange({ ...condition, [key]: value })
   }
+
+  // params 를 쓰면서 옛 필드(indicatorPeriod/targetPeriod)도 첫 파라미터로 같이 맞춘다.
+  // 옛 표시 코드와 저장된 전략이 그 필드를 읽기 때문이다
+  const setParams = (
+    which: 'params' | 'targetParams',
+    spec: IndicatorSpec | undefined,
+    next: Record<string, number>
+  ) => {
+    const legacyKey = which === 'params' ? 'indicatorPeriod' : 'targetPeriod'
+    const first = spec?.params[0]?.name
+    onChange({
+      ...condition,
+      [which]: next,
+      [legacyKey]: first !== undefined ? next[first] : condition[legacyKey],
+    })
+  }
+
+  // 지표를 바꾸면 그 지표의 기본 파라미터로 초기화
+  const setIndicator = (which: 'indicator' | 'targetIndicator', name: string) => {
+    const spec = findSpec(specs, name)
+    const defaults = resolveParams(spec, undefined, undefined)
+    const paramsKey = which === 'indicator' ? 'params' : 'targetParams'
+    const legacyKey = which === 'indicator' ? 'indicatorPeriod' : 'targetPeriod'
+    const first = spec?.params[0]?.name
+    onChange({
+      ...condition,
+      [which]: name as IndicatorType,
+      [paramsKey]: defaults,
+      [legacyKey]: first !== undefined ? defaults[first] : undefined,
+    })
+  }
+
+  const mainSpec = findSpec(specs, condition.indicator)
+  const targetSpec = findSpec(specs, condition.targetIndicator)
+  const bandSpec = findBandSpec(specs, condition.bandType)
 
   const renderSentence = () => {
     switch (condition.templateType) {
@@ -191,23 +265,22 @@ export default function SentenceCondition({
           <>
             <SlotDropdown
               value={condition.indicator || 'RSI'}
-              options={indicatorOptionsForValue}
-              onChange={(v) => updateSlot('indicator', v as IndicatorType)}
+              options={indicatorOptionsFor(specs, 'indicator_vs_value')}
+              onChange={(v) => setIndicator('indicator', v)}
             />
-            <span className="text-dim text-sm font-light">(</span>
-            <NumberSlot
-              value={condition.indicatorPeriod || 14}
-              onChange={(v) => updateSlot('indicatorPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={mainSpec ?? findSpec(specs, 'RSI')}
+              params={condition.params}
+              legacyPeriod={condition.indicatorPeriod}
+              onChange={(next) => setParams('params', mainSpec ?? findSpec(specs, 'RSI'), next)}
             />
-            <span className="text-dim text-sm font-light">)</span>
             <span className="text-muted text-sm font-medium px-1">가</span>
             <NumberSlot
-              value={condition.value || 30}
+              value={condition.value ?? 30}
               onChange={(v) => updateSlot('value', v)}
-              min={0}
-              max={1000}
+              min={-10000000}
+              max={10000000}
+              step={0.5}
             />
             <span className="text-muted text-sm font-medium px-1">보다</span>
             <SlotDropdown
@@ -224,31 +297,29 @@ export default function SentenceCondition({
           <>
             <SlotDropdown
               value={condition.indicator || 'SMA'}
-              options={indicatorOptionsForCross}
-              onChange={(v) => updateSlot('indicator', v as IndicatorType)}
+              options={indicatorOptionsFor(specs, 'indicator_cross')}
+              onChange={(v) => setIndicator('indicator', v)}
             />
-            <span className="text-muted">(</span>
-            <NumberSlot
-              value={condition.indicatorPeriod || 5}
-              onChange={(v) => updateSlot('indicatorPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={mainSpec ?? findSpec(specs, 'SMA')}
+              params={condition.params}
+              legacyPeriod={condition.indicatorPeriod ?? 5}
+              onChange={(next) => setParams('params', mainSpec ?? findSpec(specs, 'SMA'), next)}
             />
-            <span className="text-muted">)</span>
             <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.targetIndicator || 'SMA'}
-              options={indicatorOptionsForCross}
-              onChange={(v) => updateSlot('targetIndicator', v as IndicatorType)}
+              options={indicatorOptionsFor(specs, 'indicator_cross')}
+              onChange={(v) => setIndicator('targetIndicator', v)}
             />
-            <span className="text-muted">(</span>
-            <NumberSlot
-              value={condition.targetPeriod || 20}
-              onChange={(v) => updateSlot('targetPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={targetSpec ?? findSpec(specs, 'SMA')}
+              params={condition.targetParams}
+              legacyPeriod={condition.targetPeriod ?? 20}
+              onChange={(next) =>
+                setParams('targetParams', targetSpec ?? findSpec(specs, 'SMA'), next)
+              }
             />
-            <span className="text-muted">)</span>
             <span className="text-ink">을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
@@ -271,17 +342,17 @@ export default function SentenceCondition({
             <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.targetIndicator || 'SMA'}
-              options={indicatorOptionsForCross}
-              onChange={(v) => updateSlot('targetIndicator', v as IndicatorType)}
+              options={indicatorOptionsFor(specs, 'price_cross')}
+              onChange={(v) => setIndicator('targetIndicator', v)}
             />
-            <span className="text-muted">(</span>
-            <NumberSlot
-              value={condition.targetPeriod || 20}
-              onChange={(v) => updateSlot('targetPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={targetSpec ?? findSpec(specs, 'SMA')}
+              params={condition.targetParams}
+              legacyPeriod={condition.targetPeriod ?? 20}
+              onChange={(next) =>
+                setParams('targetParams', targetSpec ?? findSpec(specs, 'SMA'), next)
+              }
             />
-            <span className="text-muted">)</span>
             <span className="text-ink">을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
@@ -325,17 +396,27 @@ export default function SentenceCondition({
             <span className="text-ink">가</span>
             <SlotDropdown
               value={condition.bandType || 'bollinger'}
-              options={bandTypeOptions}
-              onChange={(v) => updateSlot('bandType', v as 'bollinger' | 'keltner' | 'envelope')}
+              options={specs
+                .filter((s) => s.bandType)
+                .map((s) => ({ value: s.bandType as string, label: s.label }))}
+              onChange={(v) => {
+                // 밴드 종류를 바꾸면 그 밴드의 기본 파라미터로
+                const next = findBandSpec(specs, v)
+                const defaults = resolveParams(next, undefined, undefined)
+                onChange({
+                  ...condition,
+                  bandType: v as 'bollinger' | 'keltner' | 'envelope',
+                  params: defaults,
+                  indicatorPeriod: defaults.period,
+                })
+              }}
             />
-            <span className="text-muted">(</span>
-            <NumberSlot
-              value={condition.indicatorPeriod || 20}
-              onChange={(v) => updateSlot('indicatorPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={bandSpec}
+              params={condition.params}
+              legacyPeriod={condition.indicatorPeriod}
+              onChange={(next) => setParams('params', bandSpec, next)}
             />
-            <span className="text-muted">)</span>
             <SlotDropdown
               value={condition.bandPosition || 'lower'}
               options={bandPositionOptions}
@@ -355,7 +436,14 @@ export default function SentenceCondition({
       case 'macd_signal':
         return (
           <>
-            <span className="text-ink">MACD가 시그널선을</span>
+            <span className="text-ink">MACD</span>
+            <ParamSlots
+              spec={findSpec(specs, 'MACD')}
+              params={condition.params}
+              legacyPeriod={undefined}
+              onChange={(next) => setParams('params', findSpec(specs, 'MACD'), next)}
+            />
+            <span className="text-ink">가 시그널선을</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}
               options={crossDirectionOptions}
@@ -370,14 +458,12 @@ export default function SentenceCondition({
         return (
           <>
             <span className="text-ink">스토캐스틱</span>
-            <span className="text-muted">(</span>
-            <NumberSlot
-              value={condition.indicatorPeriod || 14}
-              onChange={(v) => updateSlot('indicatorPeriod', v)}
-              min={1}
-              max={200}
+            <ParamSlots
+              spec={findSpec(specs, 'STOCH')}
+              params={condition.params}
+              legacyPeriod={condition.indicatorPeriod}
+              onChange={(next) => setParams('params', findSpec(specs, 'STOCH'), next)}
             />
-            <span className="text-muted">)</span>
             <span className="text-ink">%K가 %D를</span>
             <SlotDropdown
               value={condition.crossDirection || 'above'}

@@ -1,7 +1,7 @@
 // 백엔드 API 서비스 레이어
 // FastAPI 백엔드와 통신
 
-import type { SentenceCondition, TradingConfig, TimeFrame } from '../components/backtest/types'
+import type { SentenceCondition, TradingConfig, TimeFrame, IndicatorSpec } from '../components/backtest/types'
 
 // API 기본 URL
 // 개발 환경: http://localhost:8000/api (직접 연결)
@@ -366,6 +366,20 @@ export async function runBacktest(
 
   // 타임아웃
   throw new Error('백테스트 타임아웃: 5분 이내에 완료되지 않았습니다.')
+}
+
+/**
+ * 지표 레지스트리 (GET /api/indicators)
+ *
+ * 지표 선택지·파라미터 슬롯·차트 힌트는 여기서 받는다. 하드코딩하지 않는다.
+ */
+export async function fetchIndicators(): Promise<IndicatorSpec[]> {
+  const response = await fetch(`${API_BASE_URL}/indicators`)
+  if (!response.ok) {
+    throw new Error(`지표 목록 조회 실패: ${response.statusText}`)
+  }
+  const data = (await response.json()) as { indicators: IndicatorSpec[] }
+  return data.indicators
 }
 
 /**
