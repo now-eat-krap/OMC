@@ -19,3 +19,6 @@ else:
 
 # 작업 큐 생성
 queue = Queue("backtest", connection=redis_conn, default_timeout=3600)
+
+# 캐시 갱신 같은 유지보수 작업용. 워커는 backtest를 먼저 보고 그 다음 이 큐를 본다
+maintenance_queue = Queue("maintenance", connection=redis_conn, default_timeout=1800)

@@ -39,8 +39,10 @@ backend/
 │   ├── main.py              # FastAPI 엔트리포인트
 │   ├── rq_app.py            # RQ 큐/Redis 연결 설정
 │   ├── worker.py            # RQ 워커 진입점 (Numba 워밍업 후 기동)
+│   ├── cron.py              # RQ 크론 진입점 (주기 작업을 큐에 넣음, 항상 1개)
 │   ├── tasks/               # 백그라운드 작업 정의
-│   │   └── backtest_tasks.py
+│   │   ├── backtest_tasks.py
+│   │   └── cache_tasks.py   # 캔들 캐시 일일 갱신
 │   ├── routers/             # API 라우터
 │   │   ├── backtest.py      # 백테스트 API
 │   │   ├── assets.py        # 자산 API
@@ -53,7 +55,7 @@ backend/
 │   │   ├── data.py          # OHLCV 데이터 수집
 │   │   ├── cache.py         # Redis 캐시
 │   │   ├── indicators.py    # 기술 지표 (Numba 최적화)
-│   │   └── scheduler.py     # 캐시 갱신 스케줄러
+│   │   └── scheduler.py     # 캐시 초기화/갱신 함수
 │   ├── schemas/             # Pydantic 모델
 │   └── core/                # 설정
 └── tests/                   # 테스트
@@ -227,7 +229,7 @@ Redis
 
 | 설정        | 값                    |
 | ----------- | --------------------- |
-| 큐 이름     | backtest              |
+| 큐 이름     | backtest, maintenance (워커는 backtest 우선) |
 | 연결        | Redis                 |
 | 작업 타임아웃 | 1시간 (`default_timeout=3600`) |
 | 워커 기동   | `python -m app.worker` |
@@ -236,6 +238,16 @@ Redis
 프로세스를 fork하므로, 워커를 시작하기 전에 Numba JIT 워밍업을 끝내야
 자식들이 컴파일 결과를 물려받습니다. CLI로 띄우면 요청마다 약 16초를
 다시 컴파일합니다.
+
+### 주기 작업
+
+`app/cron.py`(`rq-cron` 서비스)가 정해진 시각에 작업을 `maintenance` 큐에 넣고
+워커가 실행합니다. RQ의 CronScheduler는 리더 선출이 없어서 **이 프로세스는 항상
+하나**여야 합니다. 워커 수와는 무관합니다.
+
+| 작업 | 시각 | 함수 |
+| ---- | ---- | ---- |
+| 캔들 캐시 일일 갱신 | 매일 00:05 UTC (한국 09:05) | `tasks/cache_tasks.update_candle_cache` |
 
 ### 작업 상태
 

@@ -19,7 +19,7 @@ from rq import Worker
 from sentry_sdk.integrations.rq import RqIntegration
 
 from app.core.sentry import init_sentry
-from app.rq_app import queue, redis_conn
+from app.rq_app import maintenance_queue, queue, redis_conn
 from app.services.scheduler import warmup_numba_jit
 
 logger = logging.getLogger(__name__)
@@ -39,7 +39,8 @@ def main() -> None:
     asyncio.run(warmup_numba_jit())
     logger.info("워밍업 완료. RQ 워커를 시작합니다.")
 
-    worker = Worker([queue], connection=redis_conn)
+    # 앞에 둔 큐가 우선이다. 둘 다 비어 있지 않으면 backtest를 먼저 처리한다
+    worker = Worker([queue, maintenance_queue], connection=redis_conn)
     worker.work(with_scheduler=True)
 
 

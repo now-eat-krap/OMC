@@ -1,6 +1,9 @@
-# 캔들 캐시 스케줄러
-# 서버 시작 시 자동 초기화 + 매일 00:05 UTC 업데이트
+# 캔들 캐시 관리
+# 서버 시작 시 자동 초기화 + 일일 갱신 함수
 # 각 타임프레임별로 Binance에서 직접 데이터 가져오기
+#
+# 일일 갱신의 "언제"는 여기서 정하지 않습니다. app/cron.py가 매일 00:05 UTC에
+# maintenance 큐에 넣고 워커가 update_cache_daily를 실행합니다.
 
 import asyncio
 import logging
@@ -9,8 +12,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import ccxt
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 
 from app.config import SUPPORTED_TIMEFRAMES, TOP_COIN_SYMBOLS, get_coin_start_date
 from app.services.cache import candle_cache
@@ -21,9 +22,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# 글로벌 스케줄러 인스턴스
-scheduler = AsyncIOScheduler()
 
 
 def fetch_candles_sync(
@@ -149,7 +147,7 @@ async def initialize_cache_if_empty():
 
 
 async def update_cache_daily():
-    """매일 새 캔들 추가 (스케줄러에서 호출)"""
+    """매일 새 캔들 추가 (app/tasks/cache_tasks.py가 호출)"""
     if not candle_cache.is_available:
         logger.warning("Redis 연결 불가. 업데이트 건너뜀.")
         return
@@ -179,20 +177,6 @@ async def update_cache_daily():
     candle_cache.set_last_update(yesterday)
 
     logger.info(f"=== 일일 캐시 업데이트 완료 ({yesterday}) ===")
-
-
-def setup_scheduler():
-    """스케줄러 설정 (매일 00:05 UTC)"""
-    # 매일 00:05 UTC에 실행
-    scheduler.add_job(
-        update_cache_daily,
-        trigger=CronTrigger(hour=0, minute=5),  # UTC 00:05 = 한국 09:05
-        id="daily_cache_update",
-        name="Daily Cache Update",
-        replace_existing=True,
-    )
-
-    logger.info("스케줄러 설정 완료: 매일 00:05 UTC (한국 09:05)")
 
 
 async def warmup_numba_jit():
@@ -292,13 +276,7 @@ async def lifespan(app):
     # 2. Redis 비어있으면 초기화 (백그라운드)
     asyncio.create_task(initialize_cache_if_empty())
 
-    # 3. 스케줄러 설정 및 시작
-    setup_scheduler()
-    scheduler.start()
-    logger.info("스케줄러 시작됨")
-
     yield
 
     # 종료 시
-    scheduler.shutdown()
     logger.info("=== 서버 종료 ===")
