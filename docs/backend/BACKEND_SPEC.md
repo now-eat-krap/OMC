@@ -19,8 +19,8 @@
 
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   FastAPI   │────▶│   Celery    │────▶│   Redis     │
-│   (API)     │     │  (Worker)   │     │  (Broker)   │
+│   FastAPI   │────▶│    Redis    │────▶│  RQ Worker  │
+│   (API)     │     │ (Queue/캐시) │     │ (app.worker)│
 └─────────────┘     └─────────────┘     └─────────────┘
                            │
                     ┌──────┴──────┐
@@ -37,7 +37,10 @@
 backend/
 ├── app/
 │   ├── main.py              # FastAPI 엔트리포인트
-│   ├── celery_app.py        # Celery 워커 설정
+│   ├── rq_app.py            # RQ 큐/Redis 연결 설정
+│   ├── worker.py            # RQ 워커 진입점 (Numba 워밍업 후 기동)
+│   ├── tasks/               # 백그라운드 작업 정의
+│   │   └── backtest_tasks.py
 │   ├── routers/             # API 라우터
 │   │   ├── backtest.py      # 백테스트 API
 │   │   ├── assets.py        # 자산 API
@@ -152,24 +155,26 @@ backend/
 sequenceDiagram
     participant Client
     participant API
-    participant Celery
+    participant Worker as RQ Worker
     participant Engine
     participant Redis
 
     Client->>API: POST /api/backtest
-    API->>Celery: 작업 큐에 추가
+    API->>Redis: 작업 큐에 추가
     API-->>Client: task_id 반환
 
-    Celery->>Engine: run(request)
+    Redis->>Worker: 작업 전달
+    Worker->>Engine: run(request)
     Engine->>Redis: 캐시 조회
     Redis-->>Engine: OHLCV 데이터
     Engine->>Engine: 시그널 생성
     Engine->>Engine: VectorBT 시뮬레이션
-    Engine-->>Celery: BacktestResult
+    Engine-->>Worker: BacktestResult
+    Worker->>Redis: 결과 저장
 
     Client->>API: GET /api/backtest/status/{task_id}
-    API->>Celery: 결과 조회
-    Celery-->>API: 결과
+    API->>Redis: Job 상태/결과 조회
+    Redis-->>API: 결과
     API-->>Client: BacktestResult
 ```
 
@@ -218,20 +223,28 @@ Redis
 
 ## 비동기 처리
 
-### Celery 설정
+### RQ 설정
 
-| 설정         | 값    |
-| ------------ | ----- |
-| Broker       | Redis |
-| Backend      | Redis |
-| 동시 작업 수 | 2     |
-| 결과 만료    | 1시간 |
+| 설정        | 값                    |
+| ----------- | --------------------- |
+| 큐 이름     | backtest              |
+| 연결        | Redis                 |
+| 작업 타임아웃 | 1시간 (`default_timeout=3600`) |
+| 워커 기동   | `python -m app.worker` |
+
+워커는 `rq worker` CLI 대신 `app/worker.py`로 띄웁니다. RQ는 작업마다 자식
+프로세스를 fork하므로, 워커를 시작하기 전에 Numba JIT 워밍업을 끝내야
+자식들이 컴파일 결과를 물려받습니다. CLI로 띄우면 요청마다 약 16초를
+다시 컴파일합니다.
 
 ### 작업 상태
 
 ```
-PENDING → RUNNING → SUCCESS/FAILURE
+queued → started → finished / failed
 ```
+
+진행률은 `job.meta`에 기록하고(`update_job_progress`) 상태 조회 API가 읽어서
+`pending / running / completed / failed`로 변환해 응답합니다.
 
 ---
 
@@ -257,5 +270,5 @@ PENDING → RUNNING → SUCCESS/FAILURE
 
 ### Sentry 에러 추적
 
-- FastAPI 및 Celery 에러 자동 전송
+- FastAPI 에러 자동 전송, RQ 작업 실패는 `sentry_sdk.capture_exception`으로 전송
 - 환경변수 `SENTRY_DSN` 설정 시 활성화

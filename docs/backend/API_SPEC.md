@@ -16,7 +16,7 @@
 
 ## Backtest API
 
-백테스트 실행 및 상태 조회. Celery 비동기 작업 큐 기반.
+백테스트 실행 및 상태 조회. RQ(Redis Queue) 비동기 작업 큐 기반.
 
 ### POST `/api/backtest`
 
