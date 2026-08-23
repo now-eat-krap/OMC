@@ -200,6 +200,8 @@ export default function BacktestPage() {
         // 요약 지표
         totalReturn: response.totalReturn,
         totalReturnUsdt: response.totalReturnUsdt,
+        buyHoldReturn: response.buyHoldReturn,
+        buyHoldReturnUsdt: response.buyHoldReturnUsdt,
         winRate: response.winRate,
         maxDrawdown: response.maxDrawdown,
         maxDrawdownUsdt: response.maxDrawdownUsdt,

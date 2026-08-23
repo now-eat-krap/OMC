@@ -107,6 +107,11 @@ class BacktestResult(BaseModel):
     # 요약 지표
     totalReturn: float = Field(..., description="총 수익률 (%)")
     totalReturnUsdt: float = Field(default=0, description="총 수익액 (USDT)")
+    buyHoldReturn: float = Field(
+        default=0,
+        description="같은 기간·같은 수수료로 첫 봉 시가에 전액 매수해 끝까지 들고 있었을 때 수익률 (%)",
+    )
+    buyHoldReturnUsdt: float = Field(default=0, description="보유 전략 수익액 (USDT)")
     winRate: float = Field(..., description="승률 (%)")
     maxDrawdown: float = Field(..., description="최대 낙폭 (%)")
     maxDrawdownUsdt: float = Field(default=0, description="최대 낙폭액 (USDT)")

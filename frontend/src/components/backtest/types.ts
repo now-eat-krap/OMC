@@ -111,6 +111,8 @@ export interface BacktestResult {
 
   totalReturn: number // 총 수익률 (%)
   totalReturnUsdt?: number // 총 수익액 (USDT)
+  buyHoldReturn?: number // 같은 기간 첫 봉 시가에 전액 매수해 들고 있었을 때 수익률 (%)
+  buyHoldReturnUsdt?: number // 보유 수익액 (USDT)
   winRate: number // 승률 (%)
   maxDrawdown: number // 최대 낙폭 (%)
   maxDrawdownUsdt?: number // 최대 낙폭액 (USDT)

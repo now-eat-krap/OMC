@@ -131,6 +131,38 @@ def order_func_nb(
     return portfolio_nb.order_nb(size=np.nan)
 
 
+def buy_and_hold_return(
+    open_prices: np.ndarray,
+    close_prices: np.ndarray,
+    initial_capital: float,
+    fee_rate: float,
+    slippage_rate: float,
+    precision_mult: int,
+) -> tuple[float, float]:
+    """기준선: 첫 봉 시가에 전액 매수해 마지막 봉 종가까지 들고 있었을 때
+
+    전략과 같은 가정을 씁니다. 진입은 슬리피지와 수수료를 떼고, 수량은 코인별 최소
+    주문 단위로 버림합니다. 청산은 하지 않습니다. 전략의 미청산 포지션을 마지막 종가로
+    평가하는 것과 같은 기준이라 둘을 나란히 놓고 비교할 수 있습니다.
+
+    Returns:
+        (수익률 %, 수익액)
+    """
+    if len(open_prices) == 0 or initial_capital <= 0:
+        return 0.0, 0.0
+    fill = float(open_prices[0]) * (1.0 + slippage_rate)
+    if fill <= 0:
+        return 0.0, 0.0
+    # 수수료까지 포함해 자본 안에서 살 수 있는 최대 수량을 최소 단위로 버림
+    qty = np.floor(initial_capital / (fill * (1.0 + fee_rate)) * precision_mult) / precision_mult
+    if qty <= 0:
+        return 0.0, 0.0
+    spent = qty * fill * (1.0 + fee_rate)
+    final_value = (initial_capital - spent) + qty * float(close_prices[-1])
+    pnl = final_value - initial_capital
+    return safe_float(pnl / initial_capital * 100.0), safe_float(pnl)
+
+
 class BacktestEngine:
     """VectorBT 기반 백테스트 엔진
 
@@ -260,6 +292,18 @@ class BacktestEngine:
         profiling["3_data_trim"] = time.perf_counter() - step_start
         profiling["trimmed_rows"] = len(df_trimmed)
 
+        # 기준선(그냥 샀다면). 거래 유무와 무관하게 같은 기간으로 계산한다
+        amount_prec, price_prec = get_coin_precision(request.symbol)
+        precision_mult = 10**amount_prec
+        buy_hold_pct, buy_hold_usdt = buy_and_hold_return(
+            df_trimmed["open"].to_numpy(dtype=np.float64),
+            df_trimmed["close"].to_numpy(dtype=np.float64),
+            float(request.initialCapital),
+            request.feeRate / 100,
+            request.slippage / 100,
+            precision_mult,
+        )
+
         # 4. 진입 시그널이 없으면 거래가 생길 수 없으므로 빈 결과 반환
         if not buy_signal.any():
             update("결과 정리 중...", 90)
@@ -274,7 +318,12 @@ class BacktestEngine:
             update("완료", 100)
 
             return BacktestResult(
+                symbol=request.symbol,
+                amountPrecision=amount_prec,
+                pricePrecision=price_prec,
                 totalReturn=0,
+                buyHoldReturn=buy_hold_pct,
+                buyHoldReturnUsdt=buy_hold_usdt,
                 winRate=0,
                 maxDrawdown=0,
                 totalTrades=0,
@@ -312,9 +361,7 @@ class BacktestEngine:
         entries_shifted = buy_signal.shift(1, fill_value=False).astype(bool)
         exit_set = exit_set.shifted(1)
 
-        # 최소주문수량 적용을 위한 precision 조회
-        amount_prec, price_prec = get_coin_precision(request.symbol)
-        precision_mult = 10**amount_prec
+        # (precision_mult 는 위 기준선 계산에서 이미 구했다)
 
         # 배열 준비 (numpy)
         entries_arr = entries_shifted.values.astype(np.bool_)
@@ -479,15 +526,14 @@ TOTAL:              {profiling.get("total", 0) * 1000:.2f}ms
 ===============================================
 """)
 
-        # precision 정보 조회
-        amount_prec, price_prec = get_coin_precision(request.symbol)
-
         return BacktestResult(
             symbol=request.symbol,
             amountPrecision=amount_prec,
             pricePrecision=price_prec,
             totalReturn=total_return,
             totalReturnUsdt=total_return_usdt,
+            buyHoldReturn=buy_hold_pct,
+            buyHoldReturnUsdt=buy_hold_usdt,
             winRate=win_rate,
             maxDrawdown=max_dd,
             maxDrawdownUsdt=max_dd_usdt,
