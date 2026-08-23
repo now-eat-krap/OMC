@@ -16,7 +16,7 @@
 
 ## Backtest API
 
-백테스트 실행 및 상태 조회. RQ(Redis Queue) 비동기 작업 큐 기반.
+백테스트 실행·상태 조회·취소. RQ(Redis Queue) 비동기 작업 큐 기반. 계산은 별도 워커 프로세스가 하고 API는 큐에 넣고 상태만 돌려줍니다.
 
 ### POST `/api/backtest`
 
@@ -85,11 +85,19 @@
   "task_id": "abc123-def456",
   "status": "completed",
   "message": "백테스트 완료",
+  "progress": 100,
   "result": {
     "totalReturn": 15.5,
+    "totalReturnUsdt": 155000.0,
     "winRate": 60.0,
     "maxDrawdown": -8.2,
+    "maxDrawdownUsdt": 82000.0,
+    "sharpeRatio": 1.2,
+    "profitFactor": 1.8,
     "totalTrades": 10,
+    "profitTrades": 6,
+    "lossTrades": 4,
+    "equityCurve": [{ "date": "2024-01-01T00:00:00", "value": 1000000.0 }, ...],
     "trades": [...],
     "ohlcv": [...],
     "indicators": [...]
@@ -97,29 +105,50 @@
 }
 ```
 
+실행 중에는 `message`와 `progress`(0~100)로 진행 상황을 알립니다. `equityCurve`는 봉마다의
+포트폴리오 가치로, 첫 점이 초기 자본입니다.
+
 #### Status Values
 
-| 상태        | 설명    |
-| ----------- | ------- |
-| `pending`   | 대기 중 |
-| `running`   | 실행 중 |
-| `completed` | 완료    |
-| `failed`    | 실패    |
+| 상태        | 설명                                                            |
+| ----------- | --------------------------------------------------------------- |
+| `pending`   | 큐에서 대기 중                                                  |
+| `running`   | 워커가 실행 중 (`message`, `progress` 포함)                     |
+| `completed` | 완료 (`result` 포함)                                            |
+| `failed`    | 실패 (`error` 포함)                                             |
+| `cancelled` | 취소됨. 대기 중에 빠졌거나 실행 중에 중지됨 (DELETE 참고)       |
+
+`totalTrades`는 청산된 거래 수입니다. 기간 끝에 열린 포지션은 `trades`에 `isOpen: true`로
+포함되고 수익률에는 반영되지만 `totalTrades`에는 세지 않습니다.
 
 ---
 
 ### DELETE `/api/backtest/{task_id}`
 
-백테스트 작업 취소
+백테스트 작업 취소. 대기 중이면 큐에서 빼고, **실행 중이면 워커의 작업 프로세스를 종료**합니다.
 
 #### Response
+
+작업 상태에 따라 다릅니다.
+
+| 작업 상태                | HTTP | 응답 `status` | 동작                                                   |
+| ------------------------ | ---- | ------------- | ------------------------------------------------------ |
+| 실행 중 (`running`)      | 200  | `cancelling`  | 워커에 중지 명령 전송. 잠시 뒤 상태 조회가 `cancelled` |
+| 대기 중 (`pending`)      | 200  | `cancelled`   | 큐에서 제거                                            |
+| 이미 취소됨              | 200  | `cancelled`   | 없음                                                   |
+| 완료/실패 (`completed`, `failed`) | 409  | —      | 이미 끝난 작업은 취소할 수 없음                        |
+| 없는 작업                | 404  | —             |                                                        |
 
 ```json
 {
   "task_id": "abc123-def456",
-  "status": "cancelled"
+  "status": "cancelling"
 }
 ```
+
+실행 중 취소는 비동기입니다. 워커가 명령을 받아 프로세스를 종료하고 상태를 바꾸기까지
+약간 걸리므로, 클라이언트는 상태 조회에서 `cancelled`를 받을 때까지 폴링하거나 그냥
+빠져나가면 됩니다. 프론트는 후자입니다.
 
 ---
 
