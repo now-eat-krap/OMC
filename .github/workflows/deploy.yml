@@ -79,11 +79,13 @@ jobs:
             # GHCR 로그인
             echo ${{ secrets.GITHUB_TOKEN }} | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-            # 최신 이미지 Pull
-            docker compose pull
+            # 최신 이미지 Pull (compose 의 image: 가 GHCR 을 가리키므로 여기서 실제로 받는다)
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml pull
 
             # 프로덕션 환경으로 재시작
-            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+            # 이미지가 바뀐 컨테이너만 재생성된다. --remove-orphans 는 compose 에서
+            # 빠진 옛 서비스 컨테이너(예: Celery 시절 backtesting-worker)를 정리한다
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
 
             # 사용하지 않는 이미지 정리
             docker image prune -f

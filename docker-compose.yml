@@ -4,8 +4,15 @@
 # =============================================================================
 #
 # 사용법:
-#   개발 환경:  docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
-#   프로덕션:   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   개발 환경:  docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#   프로덕션:   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# 이미지:
+#   backend/rq-worker/rq-cron/frontend 는 image: 와 build: 를 둘 다 가진다.
+#   - 배포(CI): deploy.yml 이 GHCR 에 올린 이미지를 `compose pull` 로 받아 쓴다.
+#     image: 가 없으면 pull 이 "No image to be pulled" 로 건너뛰고, up -d 는 로컬에
+#     이미지가 이미 있으면 다시 빌드하지 않아 옛 컨테이너가 그대로 남는다.
+#   - 로컬: --build 를 붙이면 같은 이름으로 직접 빌드한다. pull 없이도 된다.
 #   중지:       docker-compose down
 #   로그 확인:  docker-compose logs -f [서비스명]
 #
@@ -64,6 +71,7 @@ services:
   # Redis 캐시 연동으로 빠른 데이터 조회
   # ===========================================================================
   backend:
+    image: ghcr.io/now-eat-krap/omc/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -93,6 +101,8 @@ services:
   # 백그라운드에서 백테스트 작업을 처리하는 Worker
   # ===========================================================================
   rq-worker:
+    # backend 와 같은 이미지. 진입 명령만 다르다
+    image: ghcr.io/now-eat-krap/omc/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -119,6 +129,8 @@ services:
   # 리더 선출이 없으므로 이 서비스는 항상 1개여야 한다 (app/cron.py 주석 참고)
   # ===========================================================================
   rq-cron:
+    # backend 와 같은 이미지. 진입 명령만 다르다
+    image: ghcr.io/now-eat-krap/omc/backend:latest
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -140,6 +152,7 @@ services:
   # API 요청은 Backend로 리버스 프록시
   # ===========================================================================
   frontend:
+    image: ghcr.io/now-eat-krap/omc/frontend:latest
     build:
       context: ./frontend
       dockerfile: Dockerfile
