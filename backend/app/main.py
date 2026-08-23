@@ -3,7 +3,6 @@
 
 import os
 
-import sentry_sdk
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,26 +11,12 @@ from slowapi import Limiter
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from app.core.sentry import init_sentry
 from app.routers import ai, assets, backtest
 from app.services.scheduler import lifespan
 
-# =============================================================================
-# Sentry 초기화 (프로덕션 환경에서 에러 추적)
-# =============================================================================
-# SENTRY_DSN 환경변수가 설정된 경우에만 활성화
-SENTRY_DSN = os.getenv("SENTRY_DSN")
-if SENTRY_DSN:
-    sentry_sdk.init(
-        dsn=SENTRY_DSN,
-        # 성능 모니터링 샘플링 비율 (10%)
-        traces_sample_rate=0.1,
-        # 프로파일링 샘플링 비율 (10%)
-        profiles_sample_rate=0.1,
-        # 환경 설정 (DEBUG 변수로 구분)
-        environment="development" if os.getenv("DEBUG") == "true" else "production",
-        # 릴리즈 버전
-        release="backtesting@1.0.0",
-    )
+# Sentry 초기화 (SENTRY_DSN이 있을 때만 동작)
+init_sentry("api")
 
 # Rate limiter 인스턴스 생성
 limiter = Limiter(key_func=get_remote_address)
