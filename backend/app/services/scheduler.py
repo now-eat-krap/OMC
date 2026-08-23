@@ -1,9 +1,8 @@
-# 캔들 캐시 관리
-# 서버 시작 시 자동 초기화 + 일일 갱신 함수
+# 캔들 캐시 관리 (초기화 + 일일 갱신 함수)
 # 각 타임프레임별로 Binance에서 직접 데이터 가져오기
 #
-# 일일 갱신의 "언제"는 여기서 정하지 않습니다. app/cron.py가 매일 00:05 UTC에
-# maintenance 큐에 넣고 워커가 update_cache_daily를 실행합니다.
+# "언제 실행할지"는 여기서 정하지 않습니다. app/cron.py 가 기동 때 부트스트랩을,
+# 매일 00:05 UTC 에 일일 갱신을 maintenance 큐에 넣고 워커가 실행합니다.
 
 import asyncio
 import logging
@@ -250,7 +249,7 @@ async def warmup_numba_jit():
         # int로 워밍업하면 엔진의 float 호출 시 다시 수십 초를 컴파일합니다.
         # (엔진은 request.initialCapital: float, precision_mult: int를 전달)
         portfolio_of = vbt.Portfolio.from_order_func(
-            dummy_close.to_frame(),
+            dummy_close,  # 엔진과 같이 Series 로 (DataFrame 이면 통계가 열 모양으로 나온다)
             order_func_nb,
             dummy_entries_arr,
             dummy_exit_signals,
@@ -288,14 +287,13 @@ async def warmup_numba_jit():
 async def lifespan(app):
     """FastAPI 라이프사이클 관리
 
-    Numba 워밍업은 여기서 하지 않습니다. 백테스트는 워커가 돌리므로
-    워밍업도 워커 기동 시(app/worker.py)에 합니다.
+    무거운 일은 여기서 하지 않습니다.
+    - Numba 워밍업: 워커 기동 시 (app/worker.py)
+    - 캐시 부트스트랩/일일 갱신: 크론이 큐에 넣고 워커가 실행 (app/cron.py)
+    API 프로세스는 uvicorn 워커 수만큼 뜨므로 여기 둔 작업은 그만큼 중복됩니다.
     """
     # 시작 시
     logger.info("=== 서버 시작 ===")
-
-    # Redis 비어있으면 초기화 (백그라운드)
-    asyncio.create_task(initialize_cache_if_empty())
 
     yield
 

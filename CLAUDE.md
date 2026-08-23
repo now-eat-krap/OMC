@@ -61,6 +61,9 @@ docker compose -f docker-compose.yml --env-file .env.dev up -d --build
   Tailwind 유틸리티보다 우선해서, 예컨대 `a { color }`가 `text-*`를 덮어씁니다.
 - **RQ 워커는 `python -m app.worker`로 띄웁니다.** `rq worker` CLI를 직접 쓰면
   Numba JIT 워밍업이 fork 이전에 일어나지 않아 요청마다 약 22초가 더 걸립니다.
+- **배포는 CI가 GHCR에 올린 이미지를 씁니다.** compose의 `image:`가 그 경로이고
+  `build:`는 로컬용입니다. 로컬에서 코드를 바꿨으면 `--build`를 붙여야 반영됩니다.
+  `image:`를 지우면 서버의 `compose pull`이 아무것도 안 받고 옛 컨테이너가 남습니다.
 - **`rq-cron` 서비스는 항상 1개입니다.** 주기 작업(캔들 캐시 일일 갱신)을 큐에
   넣는 프로세스인데 리더 선출이 없어 2개를 띄우면 작업이 두 번 들어갑니다.
   워커는 몇 개든 늘려도 됩니다.

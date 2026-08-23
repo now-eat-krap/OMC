@@ -307,7 +307,9 @@ class BacktestEngine:
 
         # 신호를 1기간 shift하여 "어제 신호 → 오늘 시가 진입" 시뮬레이션
         # (익절/손절은 order_func_nb 가 전 봉 종가로 판단하므로 같은 규칙이 적용된다)
-        entries_shifted = buy_signal.shift(1).fillna(False).astype(bool)
+        # fill_value 로 채워야 bool dtype 이 유지된다. fillna(False) 는 object 로 올라갔다
+        # 내려오면서 pandas 가 downcasting 폐기 경고를 낸다
+        entries_shifted = buy_signal.shift(1, fill_value=False).astype(bool)
         exit_set = exit_set.shifted(1)
 
         # 최소주문수량 적용을 위한 precision 조회
@@ -323,9 +325,12 @@ class BacktestEngine:
 
         # from_order_func로 포트폴리오 시뮬레이션
         # (order_func_nb는 모듈 레벨 정의 - 재컴파일 방지, 상단 주석 참고)
-        # wrapper_kwargs로 datetime 인덱스 명시적 전달
+        # close 는 Series 로 넘긴다. DataFrame 으로 넘기면 value()/total_return() 등이
+        # 전부 열 하나짜리 DataFrame/Series 로 나와서 스칼라가 필요한 곳마다
+        # float(Series) 를 해야 했고, 이게 pandas 에서 폐기 예정(FutureWarning)이다.
+        # Series 면 통계는 스칼라, value() 는 봉 단위 Series 로 바로 나온다
         portfolio = vbt.Portfolio.from_order_func(
-            close.to_frame(),  # pandas DataFrame으로 전달
+            close,
             order_func_nb,
             entries_arr,
             exit_set.signals,
@@ -369,11 +374,8 @@ VectorBT 실제 수량: {first_order["Size"]}
 
         total_return = safe_float(portfolio.total_return() * 100)
 
-        # 포트폴리오 가치 시계열. from_order_func 에 close 를 DataFrame 으로 넘겨서
-        # value() 도 (n_bars, 1) DataFrame 으로 나온다. 아래 계산과 수익 곡선은
-        # 봉 단위 Series 를 전제하므로 열 하나를 꺼내 Series 로 만든다.
-        # (DataFrame 인 채로 items() 를 돌리면 행이 아니라 열을 순회해서 수익 곡선이
-        # [{"date": "close", "value": 0}] 한 점으로 뭉개졌다)
+        # 포트폴리오 가치 시계열 (봉 단위 Series). close 를 Series 로 넘겼으므로 바로
+        # Series 다. 혹시 2차원으로 오면 첫 열을 꺼낸다 (analyzer 에도 같은 방어가 있다)
         equity = portfolio.value()
         if getattr(equity, "ndim", 1) == 2:
             equity = equity.iloc[:, 0]
@@ -403,8 +405,7 @@ VectorBT 실제 수량: {first_order["Size"]}
             sharpe_ratio = None
 
         trades_closed = portfolio.trades.closed
-        _count = trades_closed.count()
-        closed_count = int(_count.iloc[0]) if hasattr(_count, "iloc") else int(_count)
+        closed_count = int(trades_closed.count())
 
         if closed_count > 0:
             _win_rate = trades_closed.win_rate
