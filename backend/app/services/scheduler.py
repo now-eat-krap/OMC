@@ -180,11 +180,15 @@ async def update_cache_daily():
 
 
 async def warmup_numba_jit():
-    """Numba JIT 컴파일 워밍업 - 서버 시작 시 실행
+    """Numba JIT 컴파일 워밍업 - RQ 워커 기동 시 실행 (app/worker.py)
 
     VectorBT는 내부적으로 Numba JIT 컴파일을 사용합니다.
-    첫 실행 시 컴파일 오버헤드가 발생하므로, 서버 시작 시
-    더미 데이터로 미리 컴파일하여 사용자 요청 시 빠르게 처리합니다.
+    첫 실행 시 컴파일 오버헤드가 발생하므로, 워커를 띄우기 전에
+    더미 데이터로 미리 컴파일해 fork된 작업 프로세스가 물려받게 합니다.
+
+    API 프로세스에서는 부르지 않습니다. 백테스트는 전부 워커가 돌리고
+    API 요청 경로에는 Numba 함수를 호출하는 곳이 없어서, 여기서 돌리면
+    쓰지도 않을 컴파일에 기동 시간만 약 60초 늘어납니다.
     """
     import numpy as np
     import pandas as pd
@@ -265,15 +269,15 @@ async def warmup_numba_jit():
 
 @asynccontextmanager
 async def lifespan(app):
-    """FastAPI 라이프사이클 관리"""
+    """FastAPI 라이프사이클 관리
+
+    Numba 워밍업은 여기서 하지 않습니다. 백테스트는 워커가 돌리므로
+    워밍업도 워커 기동 시(app/worker.py)에 합니다.
+    """
     # 시작 시
     logger.info("=== 서버 시작 ===")
 
-    # 1. Numba JIT 워밍업 (첫 요청 지연 방지)
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, lambda: asyncio.run(warmup_numba_jit()))
-
-    # 2. Redis 비어있으면 초기화 (백그라운드)
+    # Redis 비어있으면 초기화 (백그라운드)
     asyncio.create_task(initialize_cache_if_empty())
 
     yield
