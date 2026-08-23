@@ -3,7 +3,7 @@
 # =============================================================================
 #
 # 사용법:
-#   docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
 #
 # 프로덕션 환경 특징:
 #   - 소스 코드 마운트 없음 (이미지 내 코드 사용)
@@ -11,8 +11,6 @@
 #   - 모니터링 스택 (Prometheus, Grafana, cAdvisor, Uptime Kuma)
 #
 # =============================================================================
-
-version: "3.8"
 
 services:
   # ===========================================================================
