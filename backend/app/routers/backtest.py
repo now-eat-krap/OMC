@@ -9,8 +9,7 @@ from rq.exceptions import NoSuchJobError
 from rq.job import Job, JobStatus
 
 from app.models import BacktestRequest
-from app.rq_app import queue, redis_conn
-from app.tasks import run_backtest_task
+from app.rq_app import BACKTEST_TASK, queue, redis_conn
 
 router = APIRouter()
 
@@ -34,7 +33,7 @@ async def submit_backtest(request: BacktestRequest):
     """백테스트 작업 제출"""
     try:
         request_data = request.model_dump()
-        job = queue.enqueue(run_backtest_task, request_data)
+        job = queue.enqueue(BACKTEST_TASK, request_data)
         return TaskSubmitResponse(task_id=job.id, status="pending")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"작업 제출 실패: {str(e)}") from e
