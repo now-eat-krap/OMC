@@ -25,9 +25,15 @@ class SentenceCondition(BaseModel):
 
     # 기본 슬롯
     indicator: str | None = None
-    indicatorPeriod: int | None = None
+    indicatorPeriod: int | None = None  # 옛 필드. params 가 없을 때 첫 파라미터(기간)로 쓴다
     targetIndicator: str | None = None
-    targetPeriod: int | None = None
+    targetPeriod: int | None = None  # 옛 필드. targetParams 가 없을 때 첫 파라미터로 쓴다
+
+    # 지표 파라미터. 키는 지표 레지스트리(indicator_registry)가 정한다.
+    # 예: RSI {"period": 14}, MACD {"fast": 12, "slow": 26, "signal": 9}, BB {"period": 20, "std": 2}
+    # 템플릿이 지표를 하나만 쓰면(macd_signal, stochastic, band_touch) params 가 그 지표 것이다
+    params: dict[str, float] | None = None
+    targetParams: dict[str, float] | None = None  # indicator_cross 의 상대 지표용
     comparison: Literal["gt", "lt", "gte", "lte"] | None = None
     crossDirection: Literal["above", "below"] | None = None
     value: float | None = None

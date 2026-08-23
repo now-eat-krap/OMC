@@ -57,6 +57,15 @@
 }
 ```
 
+조건(`SentenceCondition`)의 지표 파라미터는 `params`로 넘깁니다. 키는 `GET /api/indicators`의
+`params[].name`입니다. `indicatorPeriod`/`targetPeriod`는 옛 필드로 계속 받으며, `params`가 없을 때
+첫 번째 파라미터(기간)로 해석됩니다. 교차 템플릿의 상대 지표는 `targetParams`입니다.
+
+```json
+{ "templateType": "macd_signal", "params": { "fast": 8, "slow": 21, "signal": 5 }, "crossDirection": "above" }
+{ "templateType": "band_touch", "bandType": "bollinger", "params": { "period": 20, "std": 2.5 }, "bandPosition": "lower", "touchType": "exit" }
+```
+
 #### Response
 
 ```json
@@ -149,6 +158,50 @@
 실행 중 취소는 비동기입니다. 워커가 명령을 받아 프로세스를 종료하고 상태를 바꾸기까지
 약간 걸리므로, 클라이언트는 상태 조회에서 `cancelled`를 받을 때까지 폴링하거나 그냥
 빠져나가면 됩니다. 프론트는 후자입니다.
+
+---
+
+## Indicators API
+
+### GET `/api/indicators`
+
+지표 레지스트리 전체. 프론트는 지표 선택지·파라미터 슬롯·차트 힌트를 하드코딩하지 않고
+여기서 받습니다.
+
+```json
+{
+  "indicators": [
+    {
+      "name": "MACD",
+      "label": "MACD",
+      "description": "이동평균 수렴·확산. MACD 선, 시그널 선, 히스토그램",
+      "display": "pane",
+      "valueRange": null,
+      "templates": ["indicator_vs_value", "macd_signal"],
+      "bandType": null,
+      "params": [
+        { "name": "fast", "label": "단기", "default": 12, "min": 1, "max": 200, "step": 1, "integer": true },
+        { "name": "slow", "label": "장기", "default": 26, "min": 2, "max": 500, "step": 1, "integer": true },
+        { "name": "signal", "label": "시그널", "default": 9, "min": 1, "max": 200, "step": 1, "integer": true }
+      ],
+      "outputs": [
+        { "key": "macd", "label": "MACD", "role": "line" },
+        { "key": "signal", "label": "시그널", "role": "signal" },
+        { "key": "histogram", "label": "히스토그램", "role": "histogram" }
+      ]
+    }
+  ]
+}
+```
+
+| 필드 | 뜻 |
+| --- | --- |
+| `display` | `overlay`(가격 차트 위) / `pane`(별도 패널) |
+| `valueRange` | 고정 범위 (RSI `[0,100]`). 없으면 null |
+| `templates` | 이 지표를 고를 수 있는 `templateType` |
+| `bandType` | `band_touch`의 `bandType` 값 (볼린저/켈트너/엔벨로프) |
+| `params` | 파라미터 목록. UI는 이 개수만큼 숫자 슬롯을 그립니다 |
+| `outputs` | 출력 선. `role`로 그리는 방식이 정해집니다 |
 
 ---
 

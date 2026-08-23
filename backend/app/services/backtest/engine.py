@@ -11,6 +11,7 @@ from vectorbt.portfolio import nb as portfolio_nb
 
 from app.core.config import get_coin_precision
 from app.schemas import BacktestRequest, BacktestResult, SentenceCondition
+from app.services import indicator_registry as registry
 from app.services.backtest.analyzer import ResultAnalyzer
 from app.services.backtest.strategy import (
     EXIT_KIND_LOSS,
@@ -189,26 +190,44 @@ class BacktestEngine:
         """
         max_period = 0
 
-        for condition in conditions:
-            # 지표 기간
-            if condition.indicatorPeriod:
-                max_period = max(max_period, condition.indicatorPeriod)
+        def need(spec, params) -> None:
+            nonlocal max_period
+            max_period = max(max_period, spec.warmup_bars(params))
 
-            # 타겟 지표 기간 (크로스용)
-            if condition.targetPeriod:
-                max_period = max(max_period, condition.targetPeriod)
-
-            # MACD는 기본적으로 26일 필요
-            if condition.templateType == "macd_signal":
-                max_period = max(max_period, 35)  # 26 + 9 여유분
-
-            # 볼린저밴드
-            if condition.templateType == "band_touch":
-                max_period = max(max_period, condition.indicatorPeriod or 20)
-
-            # 스토캐스틱
-            if condition.templateType == "stochastic":
-                max_period = max(max_period, condition.indicatorPeriod or 14)
+        for c in conditions:
+            t = c.templateType
+            try:
+                if t == "indicator_vs_value" and c.indicator:
+                    spec = registry.get_spec(c.indicator)
+                    need(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+                elif t == "indicator_cross":
+                    s1 = registry.get_spec(c.indicator or "SMA")
+                    need(s1, s1.resolve_params(c.params, c.indicatorPeriod or 5))
+                    s2 = registry.get_spec(c.targetIndicator or "SMA")
+                    need(s2, s2.resolve_params(c.targetParams, c.targetPeriod or 20))
+                elif t == "price_cross":
+                    spec = registry.get_spec(c.targetIndicator or c.indicator or "SMA")
+                    need(
+                        spec,
+                        spec.resolve_params(
+                            c.targetParams or c.params, c.targetPeriod or c.indicatorPeriod or 20
+                        ),
+                    )
+                elif t == "macd_signal":
+                    spec = registry.get_spec("MACD")
+                    p = spec.resolve_params(c.params)
+                    # MACD 는 slow + signal 만큼 필요
+                    max_period = max(max_period, int(p["slow"] + p["signal"]))
+                elif t == "stochastic":
+                    spec = registry.get_spec("STOCH")
+                    need(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+                elif t == "band_touch":
+                    spec = registry.get_band_spec(c.bandType)
+                    need(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+            except ValueError:
+                continue  # 모르는 지표는 시그널 단계에서 에러가 난다
+            if c.volumePeriod:
+                max_period = max(max_period, c.volumePeriod)
 
         # 최소 1000개의 warmup 보장 (RSI 등 수렴형 지표가 정확한 값에 도달)
         return max(max_period + 10, 1000)

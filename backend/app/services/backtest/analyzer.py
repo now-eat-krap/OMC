@@ -11,7 +11,7 @@ from app.schemas import (
     SentenceCondition,
     TradeRecord,
 )
-from app.services import indicators
+from app.services import indicator_registry as registry
 from app.utils import safe_float
 
 
@@ -168,244 +168,124 @@ class ResultAnalyzer:
         conditions: list[SentenceCondition],
         valid_timestamps: set[int] | None = None,
     ) -> list[IndicatorData]:
-        """조건에서 사용된 지표 데이터 추출
+        """조건에서 사용된 지표를 레지스트리 정의대로 계산해 차트용 데이터로 만든다
+
+        조건 한 개가 지표 한두 개를 쓴다 (cross 는 둘). 같은 지표·같은 파라미터는 한 번만.
+        출력 선은 스펙의 outputs 를 따라 role 별로 담는다. 옛 프론트가 읽는 필드
+        (type/upperBand/signalLine/kLine ...) 도 같이 채워 하위 호환을 지킨다.
 
         Args:
             df: 전체 OHLCV DataFrame (warmup 포함)
             conditions: 매수/매도 조건 리스트
             valid_timestamps: 응답에 포함할 타임스탬프 집합 (None이면 전체)
-
-        Returns:
-            IndicatorData 리스트
         """
-        indicator_list = []
-        seen = set()  # 중복 방지
-
-        # =================================================================
-        # RSI 설정 미리 추출 (O(N) - 중첩 루프 제거)
-        # {period: {"overbought": int | None, "oversold": int | None}}
-        # =================================================================
-        rsi_config: dict[int, dict[str, int | None]] = {}
-        for c in conditions:
-            if c.indicator == "RSI" and c.indicatorPeriod is not None and c.value is not None:
-                period = c.indicatorPeriod
-                if period not in rsi_config:
-                    rsi_config[period] = {"overbought": None, "oversold": None}
-                # 비교 연산자로 과매수/과매도 구분
-                if c.comparison in ["gt", "gte"]:
-                    rsi_config[period]["overbought"] = int(c.value)
-                elif c.comparison in ["lt", "lte"]:
-                    rsi_config[period]["oversold"] = int(c.value)
-
-        # 타임스탬프 배열 생성
         all_timestamps = df.reset_index()["timestamp"].tolist()
-
-        # 유효한 타임스탬프만 필터링
         if valid_timestamps:
-            timestamps = [ts for ts in all_timestamps if ts in valid_timestamps]
-            valid_indices = [i for i, ts in enumerate(all_timestamps) if ts in valid_timestamps]
+            idx_ts = [(i, ts) for i, ts in enumerate(all_timestamps) if ts in valid_timestamps]
         else:
-            timestamps = all_timestamps
-            valid_indices = list(range(len(all_timestamps)))
+            idx_ts = list(enumerate(all_timestamps))
+        # 1) 조건에서 (스펙, 파라미터) 수집. 같은 것은 한 번만
+        uses: dict[tuple, tuple] = {}  # key -> (spec, params)
+        levels: dict[tuple, set[float]] = {}  # RSI 70/30 같은 보조선
 
-        for condition in conditions:
-            # 1. indicator_vs_value, indicator_cross 템플릿
-            if condition.indicator and condition.indicatorPeriod:
-                key = f"{condition.indicator}_{condition.indicatorPeriod}"
-                if key not in seen:
-                    seen.add(key)
+        def add(spec, params, level: float | None = None):
+            key = (spec.name, tuple(sorted(params.items())))
+            uses.setdefault(key, (spec, params))
+            if level is not None:
+                levels.setdefault(key, set()).add(float(level))
 
-                    # RSI의 경우 미리 추출한 설정 사용 (O(1) 조회)
-                    rsi_overbought = None
-                    rsi_oversold = None
-                    if condition.indicator == "RSI":
-                        config = rsi_config.get(condition.indicatorPeriod, {})
-                        rsi_overbought = config.get("overbought")
-                        rsi_oversold = config.get("oversold")
-
-                    ind_data = self._get_indicator_data(
-                        df,
-                        condition.indicator,
-                        condition.indicatorPeriod,
-                        timestamps,
-                        valid_indices,
-                        rsi_overbought=rsi_overbought,
-                        rsi_oversold=rsi_oversold,
+        for c in conditions:
+            t = c.templateType
+            try:
+                if t == "indicator_vs_value" and c.indicator:
+                    spec = registry.get_spec(c.indicator)
+                    add(spec, spec.resolve_params(c.params, c.indicatorPeriod), c.value)
+                elif t == "indicator_cross":
+                    s1 = registry.get_spec(c.indicator or "SMA")
+                    add(s1, s1.resolve_params(c.params, c.indicatorPeriod or 5))
+                    s2 = registry.get_spec(c.targetIndicator or "SMA")
+                    add(s2, s2.resolve_params(c.targetParams, c.targetPeriod or 20))
+                elif t == "price_cross":
+                    spec = registry.get_spec(c.targetIndicator or c.indicator or "SMA")
+                    add(
+                        spec,
+                        spec.resolve_params(
+                            c.targetParams or c.params, c.targetPeriod or c.indicatorPeriod or 20
+                        ),
                     )
-                    if ind_data:
-                        indicator_list.append(ind_data)
+                elif t == "macd_signal":
+                    spec = registry.get_spec("MACD")
+                    add(spec, spec.resolve_params(c.params))
+                elif t == "stochastic":
+                    spec = registry.get_spec("STOCH")
+                    add(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+                elif t == "band_touch":
+                    spec = registry.get_band_spec(c.bandType)
+                    add(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+            except ValueError:
+                # 모르는 지표는 strategy 단계에서 이미 에러가 났을 것이다. 차트는 건너뛴다
+                continue
 
-            # 2. targetIndicator (크로스용)
-            if condition.targetIndicator and condition.targetPeriod:
-                key = f"{condition.targetIndicator}_{condition.targetPeriod}"
-                if key not in seen:
-                    seen.add(key)
-                    ind_data = self._get_indicator_data(
-                        df,
-                        condition.targetIndicator,
-                        condition.targetPeriod,
-                        timestamps,
-                        valid_indices,
-                    )
-                    if ind_data:
-                        indicator_list.append(ind_data)
+        # 2) 계산 → IndicatorData
+        def points(series: pd.Series) -> list[IndicatorDataPoint]:
+            vals = series.to_numpy()
+            return [
+                IndicatorDataPoint(timestamp=int(ts), value=float(vals[i]))
+                for i, ts in idx_ts
+                if not pd.isna(vals[i])
+            ]
 
-            # 3. MACD 시그널 템플릿
-            if condition.templateType == "macd_signal":
-                key = "MACD_12_26_9"
-                if key not in seen:
-                    seen.add(key)
-                    macd, signal, histogram = indicators.macd(df["close"])
-                    macd_vals = [macd.values[i] for i in valid_indices]
-                    signal_vals = [signal.values[i] for i in valid_indices]
-                    hist_vals = [histogram.values[i] for i in valid_indices]
-                    indicator_list.append(
-                        IndicatorData(
-                            name="MACD",
-                            type="macd",
-                            period=12,
-                            data=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, macd_vals)
-                                if not pd.isna(v)
-                            ],
-                            signalLine=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, signal_vals)
-                                if not pd.isna(v)
-                            ],
-                            histogram=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, hist_vals)
-                                if not pd.isna(v)
-                            ],
-                        )
-                    )
+        result: list[IndicatorData] = []
+        for key, (spec, params) in uses.items():
+            outputs = registry.compute(df, spec, params)
+            by_role: dict[str, list[IndicatorDataPoint]] = {}
+            for o in spec.outputs:
+                by_role[o.role] = points(outputs[o.key])
+            primary = points(outputs[spec.primary_key])
 
-            # 4. 스토캐스틱 템플릿
-            if condition.templateType == "stochastic":
-                period = condition.indicatorPeriod or 14
-                key = f"STOCH_{period}"
-                if key not in seen:
-                    seen.add(key)
-                    k, d = indicators.stochastic(df["high"], df["low"], df["close"], period)
-                    k_vals = [k.values[i] for i in valid_indices]
-                    d_vals = [d.values[i] for i in valid_indices]
-                    indicator_list.append(
-                        IndicatorData(
-                            name=f"Stochastic({period})",
-                            type="stoch",
-                            period=period,
-                            data=[],
-                            kLine=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, k_vals)
-                                if not pd.isna(v)
-                            ],
-                            dLine=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, d_vals)
-                                if not pd.isna(v)
-                            ],
-                        )
-                    )
+            # 이름: RSI(14), SMA(20), MACD(12,26,9), Bollinger(20), Stochastic(14)
+            period_txt = str(int(params["period"])) if "period" in params else ""
+            if spec.name == "MACD":
+                name = f"MACD({int(params['fast'])},{int(params['slow'])},{int(params['signal'])})"
+            elif spec.name == "STOCH":
+                name = f"Stochastic({period_txt})"
+            elif spec.band_type:
+                label = {"bollinger": "Bollinger", "keltner": "Keltner", "envelope": "Envelope"}[
+                    spec.band_type
+                ]
+                name = f"{label}({period_txt})"
+            else:
+                name = f"{spec.name}({period_txt})"
 
-            # 5. 밴드형 템플릿 (볼린저 / 켈트너 / 엔벨로프). 차트에는 모두 상·중·하 세 선으로
-            #    그리므로 type 은 "bb" 로 통일하고 name 으로 구분한다
-            if condition.templateType == "band_touch":
-                band_type = condition.bandType or "bollinger"
-                period = condition.indicatorPeriod or 20
-                key = f"BAND_{band_type}_{period}"
-                if key not in seen:
-                    seen.add(key)
-                    upper, middle, lower = indicators.bands(df, band_type, period)
-                    band_label = {
-                        "bollinger": "Bollinger",
-                        "keltner": "Keltner",
-                        "envelope": "Envelope",
-                    }.get(band_type, band_type)
-                    upper_vals = [upper.values[i] for i in valid_indices]
-                    middle_vals = [middle.values[i] for i in valid_indices]
-                    lower_vals = [lower.values[i] for i in valid_indices]
-                    indicator_list.append(
-                        IndicatorData(
-                            name=f"{band_label}({period})",
-                            type="bb",
-                            period=period,
-                            data=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, middle_vals)
-                                if not pd.isna(v)
-                            ],
-                            upperBand=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, upper_vals)
-                                if not pd.isna(v)
-                            ],
-                            lowerBand=[
-                                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                                for ts, v in zip(timestamps, lower_vals)
-                                if not pd.isna(v)
-                            ],
-                        )
-                    )
+            period = int(params.get("period", params.get("fast", 0)))
+            lv = sorted(levels.get(key, set()))
+            rsi_over = rsi_under = None
+            if spec.name == "RSI" and lv:
+                # 조건 값 중 50 이상은 과매수선, 미만은 과매도선으로 (옛 프론트 필드)
+                over = [v for v in lv if v >= 50]
+                under = [v for v in lv if v < 50]
+                rsi_over = int(over[0]) if over else None
+                rsi_under = int(under[0]) if under else None
 
-        return indicator_list
-
-    def _get_indicator_data(
-        self,
-        df: pd.DataFrame,
-        indicator: str,
-        period: int,
-        timestamps: list[int],
-        valid_indices: list[int],
-        rsi_overbought: int | None = None,
-        rsi_oversold: int | None = None,
-    ) -> IndicatorData | None:
-        """단일 지표 데이터 생성
-
-        Args:
-            df: OHLCV DataFrame
-            indicator: 지표 이름
-            period: 기간
-            timestamps: 타임스탬프 리스트
-            valid_indices: 유효한 인덱스 리스트
-            rsi_overbought: RSI 과매수선 (예: 70, 80)
-            rsi_oversold: RSI 과매도선 (예: 30, 20)
-
-        Returns:
-            IndicatorData 또는 None
-        """
-        close = df["close"]
-        _high = df["high"]  # 향후 지표 확장용으로 유지
-        _low = df["low"]  # 향후 지표 확장용으로 유지
-
-        # 지표 계산
-        if indicator == "RSI":
-            values = indicators.rsi(close, period)
-            ind_type = "rsi"
-        elif indicator in ["SMA", "MA"]:
-            values = indicators.sma(close, period)
-            ind_type = "sma"
-        elif indicator == "EMA":
-            values = indicators.ema(close, period)
-            ind_type = "ema"
-        else:
-            return None
-
-        # valid_indices로 필터링
-        filtered_values = [values.values[i] for i in valid_indices]
-
-        return IndicatorData(
-            name=f"{indicator}({period})",
-            type=ind_type,
-            period=period,
-            data=[
-                IndicatorDataPoint(timestamp=int(ts), value=float(v))
-                for ts, v in zip(timestamps, filtered_values)
-                if not pd.isna(v)
-            ],
-            # RSI 전용 필드 (과매수/과매도 레벨)
-            rsiOverbought=rsi_overbought if ind_type == "rsi" else None,
-            rsiOversold=rsi_oversold if ind_type == "rsi" else None,
-        )
+            result.append(
+                IndicatorData(
+                    name=name,
+                    type=spec.legacy_type or spec.name.lower(),
+                    period=period,
+                    data=[] if spec.name == "STOCH" else primary,
+                    upperBand=by_role.get("band_upper"),
+                    lowerBand=by_role.get("band_lower"),
+                    signalLine=by_role.get("signal"),
+                    histogram=by_role.get("histogram"),
+                    kLine=by_role.get("k"),
+                    dLine=by_role.get("d"),
+                    rsiOverbought=rsi_over,
+                    rsiOversold=rsi_under,
+                    indicator=spec.name,
+                    params=params,
+                    display=spec.display,
+                    valueRange=list(spec.value_range) if spec.value_range else None,
+                    levels=lv or None,
+                )
+            )
+        return result

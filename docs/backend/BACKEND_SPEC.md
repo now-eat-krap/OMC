@@ -54,7 +54,8 @@ backend/
 │   │   │   └── strategy.py  # 시그널 생성
 │   │   ├── data.py          # OHLCV 데이터 수집
 │   │   ├── cache.py         # Redis 캐시
-│   │   ├── indicators.py    # 기술 지표 (Numba 최적화)
+│   │   ├── indicators.py    # 기술 지표 계산 함수 (Numba 최적화)
+│   │   ├── indicator_registry.py  # 지표 정의 한 곳 (파라미터·출력·표시 방식·템플릿)
 │   │   └── scheduler.py     # 캐시 초기화/갱신 함수
 │   ├── schemas/             # Pydantic 모델
 │   └── core/                # 설정
@@ -193,6 +194,24 @@ sequenceDiagram
     Redis-->>API: 결과
     API-->>Client: BacktestResult
 ```
+
+---
+
+## 지표 레지스트리
+
+지표 하나의 정보는 `services/indicator_registry.py`의 `IndicatorSpec` 하나에 모여 있습니다.
+이름, 라벨, 파라미터(기본값·범위), 출력 선(상단/중간/하단, 시그널, 히스토그램 …), 표시
+방식(overlay/pane), 고를 수 있는 템플릿, 계산 함수.
+
+나머지는 이 표를 읽습니다. `strategy`는 `spec.compute`로 계산하고(모르는 이름은 즉시
+에러), `analyzer`는 `outputs`·`display`로 차트 데이터를 만들고, `ai_strategy`는 enum과
+프롬프트 지표 목록을 여기서 뽑고, `GET /api/indicators`가 프론트에 넘깁니다.
+
+**새 지표를 추가하려면** `indicators.py`에 계산 함수 하나, 레지스트리에 항목 하나입니다.
+파라미터가 몇 개든 UI·AI·차트가 따라옵니다.
+
+요청의 지표 파라미터는 `SentenceCondition.params`(교차 상대는 `targetParams`)로 받고, 옛
+필드 `indicatorPeriod`/`targetPeriod`는 `params`가 없을 때 첫 파라미터로 해석합니다.
 
 ---
 

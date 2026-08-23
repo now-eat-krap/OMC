@@ -95,6 +95,16 @@ class IndicatorData(BaseModel):
     rsiOverbought: int | None = Field(default=None, description="RSI 과매수선 (예: 70, 80)")
     rsiOversold: int | None = Field(default=None, description="RSI 과매도선 (예: 30, 20)")
 
+    # 레지스트리 기반 일반 메타데이터 (새 프론트용. 옛 프론트는 위 필드만 읽는다)
+    indicator: str | None = Field(
+        default=None, description="레지스트리 지표 이름 (RSI, MACD, KELTNER ...)"
+    )
+    params: dict[str, float] | None = Field(default=None, description="계산에 쓴 파라미터")
+    display: str | None = Field(default=None, description="overlay(가격 위) / pane(별도 패널)")
+    valueRange: list[float] | None = Field(default=None, description="고정 값 범위 (RSI 0~100)")
+    # 보조선 (RSI 70/30 처럼 조건 값에서 뽑은 수평선)
+    levels: list[float] | None = Field(default=None, description="차트 보조 수평선")
+
 
 class BacktestResult(BaseModel):
     """백테스트 결과 모델"""

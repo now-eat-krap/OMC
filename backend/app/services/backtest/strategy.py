@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 
 from app.schemas import SentenceCondition
-from app.services import indicators
+from app.services import indicator_registry as registry
 
 # 청산 조건 종류 (order_func_nb 에 넘기는 정수 코드)
 EXIT_KIND_SIGNAL = 0  # 미리 계산한 불리언 시그널
@@ -152,24 +152,21 @@ class StrategyParser:
 
         # 1. 지표 vs 값
         if template == "indicator_vs_value":
-            indicator_values = self._calculate_indicator(
-                df,
-                condition.indicator or "RSI",
-                condition.indicatorPeriod or 14,
+            indicator_values = self._primary_series(
+                df, condition.indicator or "RSI", condition.params, condition.indicatorPeriod
             )
-            value = condition.value or 30
+            value = condition.value if condition.value is not None else 30
             return self._compare(indicator_values, value, condition.comparison or "lt")
 
         # 2. 지표 크로스
         elif template == "indicator_cross":
-            fast = self._calculate_indicator(
-                df,
-                condition.indicator or "SMA",
-                condition.indicatorPeriod or 5,
+            fast = self._primary_series(
+                df, condition.indicator or "SMA", condition.params, condition.indicatorPeriod or 5
             )
-            slow = self._calculate_indicator(
+            slow = self._primary_series(
                 df,
                 condition.targetIndicator or "SMA",
+                condition.targetParams,
                 condition.targetPeriod or 20,
             )
             return self._cross(fast, slow, condition.crossDirection or "above")
@@ -177,11 +174,12 @@ class StrategyParser:
         # 3. 가격 돌파
         elif template == "price_cross":
             price = df[condition.priceType or "close"]
-            indicator = self._calculate_indicator(
-                df,
-                condition.targetIndicator or "SMA",
-                condition.targetPeriod or 20,
-            )
+            # 옛 프론트는 상대 지표를 targetIndicator/targetPeriod 에, AI 는 indicator/
+            # indicatorPeriod 에 넣는다. 둘 다 받는다
+            name = condition.targetIndicator or condition.indicator or "SMA"
+            params = condition.targetParams or condition.params
+            legacy = condition.targetPeriod or condition.indicatorPeriod or 20
+            indicator = self._primary_series(df, name, params, legacy)
             return self._cross(price, indicator, condition.crossDirection or "above")
 
         # 4. 수익/손실
@@ -195,9 +193,10 @@ class StrategyParser:
         elif template == "band_touch":
             # bandType 대로 계산한다 (볼린저 / 켈트너 / 엔벨로프). 예전에는 무엇을 골라도
             # 볼린저였다
-            upper, middle, lower = indicators.bands(
-                df, condition.bandType or "bollinger", condition.indicatorPeriod or 20
-            )
+            spec = registry.get_band_spec(condition.bandType)
+            params = spec.resolve_params(condition.params, condition.indicatorPeriod)
+            out = registry.compute(df, spec, params)
+            upper, middle, lower = out["upper"], out["middle"], out["lower"]
             price = df[condition.priceType or "low"]
             position = condition.bandPosition or "lower"
 
@@ -223,15 +222,18 @@ class StrategyParser:
             # 터치: 밴드 ±0.1% 안
             return (price <= band * 1.001) & (price >= band * 0.999)
 
-        # 6. MACD 시그널
+        # 6. MACD 시그널 (params: fast/slow/signal. 예전엔 12/26/9 고정이었다)
         elif template == "macd_signal":
-            macd, signal, _ = self._calculate_macd(df)
-            return self._cross(macd, signal, condition.crossDirection or "above")
+            spec = registry.get_spec("MACD")
+            out = registry.compute(df, spec, spec.resolve_params(condition.params))
+            return self._cross(out["macd"], out["signal"], condition.crossDirection or "above")
 
-        # 7. 스토캐스틱
+        # 7. 스토캐스틱 (params: period/smooth_k/smooth_d)
         elif template == "stochastic":
-            k, d = self._calculate_stochastic(df, condition.indicatorPeriod or 14)
-            return self._cross(k, d, condition.crossDirection or "above")
+            spec = registry.get_spec("STOCH")
+            params = spec.resolve_params(condition.params, condition.indicatorPeriod)
+            out = registry.compute(df, spec, params)
+            return self._cross(out["k"], out["d"], condition.crossDirection or "above")
 
         # 8. 캔들 패턴
         elif template == "candle_pattern":
@@ -255,65 +257,21 @@ class StrategyParser:
 
         return pd.Series(False, index=df.index)
 
-    def _calculate_indicator(
+    def _primary_series(
         self,
         df: pd.DataFrame,
-        indicator: str,
-        period: int,
+        name: str,
+        params: dict | None,
+        legacy_period: int | None,
     ) -> pd.Series:
-        """지표 계산 - indicators 모듈 사용
+        """지표의 대표 선 (레지스트리 outputs[0]) 을 계산한다
 
-        Args:
-            df: OHLCV DataFrame
-            indicator: 지표 종류 (RSI, SMA, EMA, MACD, BB, STOCH)
-            period: 지표 기간
-
-        Returns:
-            지표 Series
+        MACD 는 MACD 선, 볼린저는 중간선, 스토캐스틱은 %K. 모르는 이름은 레지스트리가
+        에러를 낸다. 예전 _calculate_indicator 는 모르는 이름에 종가를 돌려줬다
         """
-        close = df["close"]
-        high = df["high"]
-        low = df["low"]
-
-        if indicator == "RSI":
-            return indicators.rsi(close, period)
-        elif indicator in ["SMA", "MA"]:
-            return indicators.sma(close, period)
-        elif indicator == "EMA":
-            return indicators.ema(close, period)
-        elif indicator == "MACD":
-            macd_line, _, _ = indicators.macd(close)
-            return macd_line
-        elif indicator == "BB":
-            _, middle, _ = indicators.bollinger_bands(close, period)
-            return middle
-        elif indicator == "STOCH":
-            k, _ = indicators.stochastic(high, low, close, period)
-            return k
-
-        # 모르는 이름은 에러. 예전에는 종가를 돌려줘서 "WMA(20) > 50000" 같은 조건이
-        # 조용히 "종가 > 50000" 으로 굴러갔다
-        raise ValueError(f"지원하지 않는 지표: {indicator} (가능: RSI, SMA, EMA, MACD, BB, STOCH)")
-
-    def _calculate_macd(
-        self,
-        df: pd.DataFrame,
-        fast: int = 12,
-        slow: int = 26,
-        signal: int = 9,
-    ):
-        """MACD 계산"""
-        return indicators.macd(df["close"], fast, slow, signal)
-
-    def _calculate_stochastic(
-        self,
-        df: pd.DataFrame,
-        period: int = 14,
-        smooth_k: int = 3,
-        smooth_d: int = 3,
-    ):
-        """스토캐스틱 계산"""
-        return indicators.stochastic(df["high"], df["low"], df["close"], period, smooth_k, smooth_d)
+        spec = registry.get_spec(name)
+        resolved = spec.resolve_params(params, legacy_period)
+        return registry.compute(df, spec, resolved)[spec.primary_key]
 
     def _compare(
         self,

@@ -8,6 +8,78 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.config import OPENAI_API_KEY
+from app.services import indicator_registry as registry
+
+INDICATOR_NAMES = list(registry.REGISTRY)
+BAND_TYPES = registry.band_types()
+
+PROMPT_TEMPLATE = """당신은 암호화폐 트레이딩 전략을 JSON 조건으로 변환하는 전문가입니다.
+
+사용자의 자연어 전략 설명을 분석하여 매수 조건(buyConditions)과 매도 조건(sellConditions)으로 변환합니다.
+
+## 지원되는 지표
+{indicator_lines}
+
+## 지원되는 조건 유형 (templateType)
+1. indicator_vs_value: 지표가 특정 값과 비교 (예: RSI가 30보다 작을 때)
+   - 필수: indicator, indicatorPeriod, comparison, value
+   - comparison: 'gt'(초과), 'lt'(미만), 'gte'(이상), 'lte'(이하)
+
+2. indicator_cross: 두 지표가 교차 (예: EMA5가 EMA20을 돌파)
+   - 필수: indicator, indicatorPeriod, targetIndicator, targetPeriod, crossDirection
+   - crossDirection: 'above'(상향돌파), 'below'(하향돌파)
+
+3. price_cross: 가격이 지표를 교차 (예: 종가가 SMA20을 돌파)
+   - 필수: priceType, indicator, indicatorPeriod, crossDirection
+   - priceType: 'close', 'high', 'low', 'open'
+
+4. profit_loss: 진입가 대비 손익 (예: 10% 이상 수익)
+   - 필수: profitDirection, value
+   - profitDirection: 'profit'(수익), 'loss'(손실)
+
+5. band_touch: 밴드 터치/돌파 (예: 볼린저밴드 하단 터치)
+   - 필수: bandType, bandPosition, touchType
+   - bandType: {band_types}
+   - bandPosition: 'upper', 'middle', 'lower'
+   - touchType: 'touch', 'cross', 'exit'
+
+6. macd_signal: MACD 시그널 (예: MACD가 시그널선을 상향돌파)
+   - 필수: crossDirection
+   - 자동으로 MACD 라인과 시그널 라인의 교차를 감지
+
+7. stochastic: 스토캐스틱 (%K/%D 교차)
+   - 필수: crossDirection
+   - 자동으로 %K와 %D의 교차를 감지
+
+## 응답 규칙
+1. 각 조건에는 고유한 id를 생성 (예: "cond_1", "cond_2")
+2. 여러 조건이 있으면 nextOperator로 연결 ('AND' 또는 'OR', 기본: 'AND')
+3. 마지막 조건의 nextOperator는 생략하거나 'AND'
+4. 매수/매도 조건이 명시되지 않으면 해당 배열을 비워둘 것
+5. 지표 기간이 명시되지 않으면 기본값 사용
+
+## 예시
+사용자: "RSI가 30 아래면 매수하고, 70 이상이면 매도해줘"
+응답:
+{{
+  "buyConditions": [
+    {{"id": "cond_1", "templateType": "indicator_vs_value", "indicator": "RSI", "indicatorPeriod": 14, "comparison": "lt", "value": 30}}
+  ],
+  "sellConditions": [
+    {{"id": "cond_2", "templateType": "indicator_vs_value", "indicator": "RSI", "indicatorPeriod": 14, "comparison": "gte", "value": 70}}
+  ]
+}}
+
+사용자: "EMA5가 EMA20을 상향돌파하면 매수, 하향돌파하면 매도"
+응답:
+{{
+  "buyConditions": [
+    {{"id": "cond_1", "templateType": "indicator_cross", "indicator": "EMA", "indicatorPeriod": 5, "targetIndicator": "EMA", "targetPeriod": 20, "crossDirection": "above"}}
+  ],
+  "sellConditions": [
+    {{"id": "cond_2", "templateType": "indicator_cross", "indicator": "EMA", "indicatorPeriod": 5, "targetIndicator": "EMA", "targetPeriod": 20, "crossDirection": "below"}}
+  ]
+}}"""
 
 
 class AIStrategyService:
@@ -31,79 +103,16 @@ class AIStrategyService:
         return hashlib.md5(normalized.encode()).hexdigest()
 
     def _get_system_prompt(self) -> str:
-        """시스템 프롬프트 반환"""
-        return """당신은 암호화폐 트레이딩 전략을 JSON 조건으로 변환하는 전문가입니다.
-
-사용자의 자연어 전략 설명을 분석하여 매수 조건(buyConditions)과 매도 조건(sellConditions)으로 변환합니다.
-
-## 지원되는 지표
-- RSI (기본 기간: 14)
-- SMA (단순이동평균, 기본 기간: 20)
-- EMA (지수이동평균, 기본 기간: 20)
-- MACD (12, 26, 9)
-- BB (볼린저밴드, 기간: 20, 표준편차: 2)
-- STOCH (스토캐스틱, 14, 3, 3)
-
-## 지원되는 조건 유형 (templateType)
-1. indicator_vs_value: 지표가 특정 값과 비교 (예: RSI가 30보다 작을 때)
-   - 필수: indicator, indicatorPeriod, comparison, value
-   - comparison: 'gt'(초과), 'lt'(미만), 'gte'(이상), 'lte'(이하)
-
-2. indicator_cross: 두 지표가 교차 (예: EMA5가 EMA20을 돌파)
-   - 필수: indicator, indicatorPeriod, targetIndicator, targetPeriod, crossDirection
-   - crossDirection: 'above'(상향돌파), 'below'(하향돌파)
-
-3. price_cross: 가격이 지표를 교차 (예: 종가가 SMA20을 돌파)
-   - 필수: priceType, indicator, indicatorPeriod, crossDirection
-   - priceType: 'close', 'high', 'low', 'open'
-
-4. profit_loss: 진입가 대비 손익 (예: 10% 이상 수익)
-   - 필수: profitDirection, value
-   - profitDirection: 'profit'(수익), 'loss'(손실)
-
-5. band_touch: 밴드 터치/돌파 (예: 볼린저밴드 하단 터치)
-   - 필수: bandType, bandPosition, touchType
-   - bandType: 'bollinger'
-   - bandPosition: 'upper', 'middle', 'lower'
-   - touchType: 'touch', 'cross', 'exit'
-
-6. macd_signal: MACD 시그널 (예: MACD가 시그널선을 상향돌파)
-   - 필수: crossDirection
-   - 자동으로 MACD 라인과 시그널 라인의 교차를 감지
-
-7. stochastic: 스토캐스틱 (%K/%D 교차)
-   - 필수: crossDirection
-   - 자동으로 %K와 %D의 교차를 감지
-
-## 응답 규칙
-1. 각 조건에는 고유한 id를 생성 (예: "cond_1", "cond_2")
-2. 여러 조건이 있으면 nextOperator로 연결 ('AND' 또는 'OR', 기본: 'AND')
-3. 마지막 조건의 nextOperator는 생략하거나 'AND'
-4. 매수/매도 조건이 명시되지 않으면 해당 배열을 비워둘 것
-5. 지표 기간이 명시되지 않으면 기본값 사용
-
-## 예시
-사용자: "RSI가 30 아래면 매수하고, 70 이상이면 매도해줘"
-응답:
-{
-  "buyConditions": [
-    {"id": "cond_1", "templateType": "indicator_vs_value", "indicator": "RSI", "indicatorPeriod": 14, "comparison": "lt", "value": 30}
-  ],
-  "sellConditions": [
-    {"id": "cond_2", "templateType": "indicator_vs_value", "indicator": "RSI", "indicatorPeriod": 14, "comparison": "gte", "value": 70}
-  ]
-}
-
-사용자: "EMA5가 EMA20을 상향돌파하면 매수, 하향돌파하면 매도"
-응답:
-{
-  "buyConditions": [
-    {"id": "cond_1", "templateType": "indicator_cross", "indicator": "EMA", "indicatorPeriod": 5, "targetIndicator": "EMA", "targetPeriod": 20, "crossDirection": "above"}
-  ],
-  "sellConditions": [
-    {"id": "cond_2", "templateType": "indicator_cross", "indicator": "EMA", "indicatorPeriod": 5, "targetIndicator": "EMA", "targetPeriod": 20, "crossDirection": "below"}
-  ]
-}"""
+        """시스템 프롬프트 반환 (지표 목록은 레지스트리에서 생성)"""
+        indicator_lines = "\n".join(
+            f"- {spec.name} ({spec.label}, 파라미터: "
+            + ", ".join(f"{p.name}={p.default:g}" for p in spec.params)
+            + ")"
+            for spec in registry.REGISTRY.values()
+            if not spec.band_type or spec.name == "BB"
+        )
+        band_types = ", ".join(f"'{b}'" for b in registry.band_types())
+        return PROMPT_TEMPLATE.format(indicator_lines=indicator_lines, band_types=band_types)
 
     def _get_tool_schema(self) -> list[dict[str, Any]]:
         """Function Calling 도구 스키마 반환"""
@@ -137,12 +146,17 @@ class AIStrategyService:
                                         },
                                         "indicator": {
                                             "type": "string",
-                                            "enum": ["RSI", "SMA", "EMA", "MACD", "BB", "STOCH"],
+                                            "enum": INDICATOR_NAMES,
                                         },
                                         "indicatorPeriod": {"type": "integer"},
+                                        "params": {
+                                            "type": "object",
+                                            "description": "지표 파라미터 (예: MACD {fast,slow,signal}, BB {period,std})",
+                                            "additionalProperties": {"type": "number"},
+                                        },
                                         "targetIndicator": {
                                             "type": "string",
-                                            "enum": ["RSI", "SMA", "EMA", "MACD", "BB", "STOCH"],
+                                            "enum": INDICATOR_NAMES,
                                         },
                                         "targetPeriod": {"type": "integer"},
                                         "comparison": {
@@ -162,7 +176,7 @@ class AIStrategyService:
                                             "type": "string",
                                             "enum": ["profit", "loss"],
                                         },
-                                        "bandType": {"type": "string", "enum": ["bollinger"]},
+                                        "bandType": {"type": "string", "enum": BAND_TYPES},
                                         "bandPosition": {
                                             "type": "string",
                                             "enum": ["upper", "middle", "lower"],
@@ -197,12 +211,17 @@ class AIStrategyService:
                                         },
                                         "indicator": {
                                             "type": "string",
-                                            "enum": ["RSI", "SMA", "EMA", "MACD", "BB", "STOCH"],
+                                            "enum": INDICATOR_NAMES,
                                         },
                                         "indicatorPeriod": {"type": "integer"},
+                                        "params": {
+                                            "type": "object",
+                                            "description": "지표 파라미터 (예: MACD {fast,slow,signal}, BB {period,std})",
+                                            "additionalProperties": {"type": "number"},
+                                        },
                                         "targetIndicator": {
                                             "type": "string",
-                                            "enum": ["RSI", "SMA", "EMA", "MACD", "BB", "STOCH"],
+                                            "enum": INDICATOR_NAMES,
                                         },
                                         "targetPeriod": {"type": "integer"},
                                         "comparison": {
@@ -222,7 +241,7 @@ class AIStrategyService:
                                             "type": "string",
                                             "enum": ["profit", "loss"],
                                         },
-                                        "bandType": {"type": "string", "enum": ["bollinger"]},
+                                        "bandType": {"type": "string", "enum": BAND_TYPES},
                                         "bandPosition": {
                                             "type": "string",
                                             "enum": ["upper", "middle", "lower"],
