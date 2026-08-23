@@ -7,9 +7,9 @@
 ```bash
 # 1. 저장소 클론
 git clone <repository-url>
-cd backtesting
+cd OMC
 
-# 2. 루트 의존성 설치 (Husky 자동 설정됨)
+# 2. 루트 의존성 설치 (Husky pre-commit 훅이 같이 설정됨)
 npm install
 
 # 3. Frontend 의존성 설치
@@ -19,6 +19,19 @@ cd frontend && npm install && cd ..
 pip install -r backend/requirements.txt
 pip install -r backend/requirements-dev.txt
 ```
+
+로컬에 Node나 Python을 두고 싶지 않다면 위 2~4 대신 컨테이너로 검증할 수 있습니다.
+PR 전에 통과해야 하는 명령이 이 둘입니다.
+
+```bash
+docker run --rm -v "$PWD/frontend:/app" -w /app node:20-alpine \
+  sh -c "npm ci && npx tsc -b && npm run lint && npx vite build"
+
+docker run --rm -v "$PWD/backend:/app" -w /app python:3.11-alpine \
+  sh -c "pip install -q ruff && python -m compileall -q app && ruff check app && ruff format --check app"
+```
+
+앱 전체를 띄우는 법과 작업 흐름(워크트리 → `develop` PR)은 루트 `CLAUDE.md`에 있습니다.
 
 ## 🔧 Pre-commit Hook
 
