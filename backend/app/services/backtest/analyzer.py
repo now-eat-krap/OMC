@@ -310,19 +310,26 @@ class ResultAnalyzer:
                         )
                     )
 
-            # 5. 볼린저밴드 템플릿
-            if condition.templateType == "band_touch" and condition.bandType == "bollinger":
+            # 5. 밴드형 템플릿 (볼린저 / 켈트너 / 엔벨로프). 차트에는 모두 상·중·하 세 선으로
+            #    그리므로 type 은 "bb" 로 통일하고 name 으로 구분한다
+            if condition.templateType == "band_touch":
+                band_type = condition.bandType or "bollinger"
                 period = condition.indicatorPeriod or 20
-                key = f"BB_{period}"
+                key = f"BAND_{band_type}_{period}"
                 if key not in seen:
                     seen.add(key)
-                    upper, middle, lower = indicators.bollinger_bands(df["close"], period)
+                    upper, middle, lower = indicators.bands(df, band_type, period)
+                    band_label = {
+                        "bollinger": "Bollinger",
+                        "keltner": "Keltner",
+                        "envelope": "Envelope",
+                    }.get(band_type, band_type)
                     upper_vals = [upper.values[i] for i in valid_indices]
                     middle_vals = [middle.values[i] for i in valid_indices]
                     lower_vals = [lower.values[i] for i in valid_indices]
                     indicator_list.append(
                         IndicatorData(
-                            name=f"Bollinger({period})",
+                            name=f"{band_label}({period})",
                             type="bb",
                             period=period,
                             data=[

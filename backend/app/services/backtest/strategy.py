@@ -191,27 +191,37 @@ class StrategyParser:
         elif template == "profit_loss":
             return pd.Series(False, index=df.index)
 
-        # 5. 밴드 터치
+        # 5. 밴드 터치 / 돌파 / 이탈
         elif template == "band_touch":
-            upper, middle, lower = self._calculate_bollinger(
-                df,
-                condition.indicatorPeriod or 20,
+            # bandType 대로 계산한다 (볼린저 / 켈트너 / 엔벨로프). 예전에는 무엇을 골라도
+            # 볼린저였다
+            upper, middle, lower = indicators.bands(
+                df, condition.bandType or "bollinger", condition.indicatorPeriod or 20
             )
             price = df[condition.priceType or "low"]
+            position = condition.bandPosition or "lower"
 
-            if condition.bandPosition == "upper":
+            if position == "upper":
                 band = upper
-            elif condition.bandPosition == "middle":
+            elif position == "middle":
                 band = middle
             else:
                 band = lower
 
-            if condition.touchType == "cross":
-                return self._cross(
-                    price, band, "below" if condition.bandPosition == "lower" else "above"
-                )
-            else:  # touch
-                return (price <= band * 1.001) & (price >= band * 0.999)
+            touch_type = condition.touchType or "touch"
+            if touch_type == "cross":
+                # 돌파: 그 봉에서 밴드를 가로지름 (상단·중간은 위로, 하단은 아래로)
+                return self._cross(price, band, "below" if position == "lower" else "above")
+            if touch_type == "exit":
+                # 이탈: 밴드 바깥에 있는 상태. 상단은 위, 하단은 아래.
+                # 중간선은 바깥이 없으니 돌파와 같게 본다
+                if position == "upper":
+                    return price > band
+                if position == "lower":
+                    return price < band
+                return self._cross(price, band, "above")
+            # 터치: 밴드 ±0.1% 안
+            return (price <= band * 1.001) & (price >= band * 0.999)
 
         # 6. MACD 시그널
         elif template == "macd_signal":
@@ -281,16 +291,9 @@ class StrategyParser:
             k, _ = indicators.stochastic(high, low, close, period)
             return k
 
-        return close  # 기본값
-
-    def _calculate_bollinger(
-        self,
-        df: pd.DataFrame,
-        period: int = 20,
-        std_dev: float = 2.0,
-    ):
-        """볼린저밴드 계산"""
-        return indicators.bollinger_bands(df["close"], period, std_dev)
+        # 모르는 이름은 에러. 예전에는 종가를 돌려줘서 "WMA(20) > 50000" 같은 조건이
+        # 조용히 "종가 > 50000" 으로 굴러갔다
+        raise ValueError(f"지원하지 않는 지표: {indicator} (가능: RSI, SMA, EMA, MACD, BB, STOCH)")
 
     def _calculate_macd(
         self,
