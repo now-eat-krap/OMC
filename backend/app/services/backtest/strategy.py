@@ -1,11 +1,58 @@
 # 전략 파싱 및 시그널 생성
 # 조건 리스트를 기반으로 매수/매도 시그널 생성
 
+from dataclasses import dataclass
 
+import numpy as np
 import pandas as pd
 
 from app.schemas import SentenceCondition
 from app.services import indicators
+
+# 청산 조건 종류 (order_func_nb 에 넘기는 정수 코드)
+EXIT_KIND_SIGNAL = 0  # 미리 계산한 불리언 시그널
+EXIT_KIND_PROFIT = 1  # 진입가 대비 수익률 >= value%
+EXIT_KIND_LOSS = 2  # 진입가 대비 수익률 <= -value%
+
+# 조건 사이 논리 연산자 (정수 코드)
+EXIT_OP_AND = 0
+EXIT_OP_OR = 1
+
+
+@dataclass
+class ExitConditionSet:
+    """청산 조건을 시뮬레이션 루프가 평가할 수 있는 형태로 풀어놓은 것
+
+    profit_loss 조건은 진입가를 알아야 판단할 수 있는데, 진입가는 시뮬레이션을
+    돌려봐야 나옵니다. 그래서 청산 조건은 미리 하나의 시그널로 합치지 않고
+    조건별로 쪼개 두었다가 order_func_nb 가 봉마다 진입가를 보며 합칩니다.
+
+    signals: (n_bars, n_conds) bool. kind 가 SIGNAL 인 열만 의미가 있습니다
+    kinds:   (n_conds,) int. EXIT_KIND_*
+    values:  (n_conds,) float. PROFIT/LOSS 의 임계 퍼센트(양수)
+    ops:     (n_conds-1,) int. 조건 i 와 i+1 사이 연산자. 왼쪽부터 차례로 적용
+    """
+
+    signals: np.ndarray
+    kinds: np.ndarray
+    values: np.ndarray
+    ops: np.ndarray
+
+    @property
+    def has_positional(self) -> bool:
+        """진입가가 필요한 조건(익절/손절)이 하나라도 있는가"""
+        return bool((self.kinds != EXIT_KIND_SIGNAL).any())
+
+    def shifted(self, periods: int = 1) -> "ExitConditionSet":
+        """시그널 열을 periods 만큼 뒤로 민다 (어제 신호 → 오늘 체결)"""
+        shifted = np.zeros_like(self.signals)
+        if periods < self.signals.shape[0]:
+            shifted[periods:] = self.signals[:-periods]
+        return ExitConditionSet(shifted, self.kinds, self.values, self.ops)
+
+    def __getitem__(self, mask) -> "ExitConditionSet":
+        """봉 축으로 마스킹 (기간 트림용)"""
+        return ExitConditionSet(self.signals[mask], self.kinds, self.values, self.ops)
 
 
 class StrategyParser:
@@ -48,6 +95,44 @@ class StrategyParser:
                 result = result | signals[i + 1]
 
         return result
+
+    def compile_exit_conditions(
+        self,
+        df: pd.DataFrame,
+        conditions: list[SentenceCondition],
+    ) -> ExitConditionSet:
+        """청산 조건을 조건별 배열로 풀어 놓는다
+
+        generate_signal 과 달리 하나로 합치지 않습니다. profit_loss 는 여기서
+        평가할 수 없으므로(진입가 미정) 종류/임계값만 기록하고, 나머지 조건은
+        평소처럼 불리언 시그널로 계산해 둡니다. 합치는 건 order_func_nb 가 합니다.
+        연산자 적용 순서(왼쪽부터 차례로)는 generate_signal 과 같습니다.
+        """
+        n_bars = len(df)
+        n = len(conditions)
+        signals = np.zeros((n_bars, max(n, 1)), dtype=np.bool_)
+        kinds = np.zeros(max(n, 1), dtype=np.int64)
+        values = np.zeros(max(n, 1), dtype=np.float64)
+        ops = np.zeros(max(n - 1, 0), dtype=np.int64)
+
+        if n == 0:
+            # 조건이 없으면 "항상 False" 하나로 둔다 (numba 쪽에서 빈 배열 분기 불필요)
+            return ExitConditionSet(signals, kinds, values, ops)
+
+        for i, condition in enumerate(conditions):
+            if condition.templateType == "profit_loss":
+                direction = condition.profitDirection or "profit"
+                kinds[i] = EXIT_KIND_LOSS if direction == "loss" else EXIT_KIND_PROFIT
+                # UI 슬라이더가 음수도 허용하므로 부호는 버리고 방향은 profitDirection 으로 정한다
+                values[i] = abs(float(condition.value if condition.value is not None else 10.0))
+            else:
+                kinds[i] = EXIT_KIND_SIGNAL
+                signals[:, i] = self._evaluate_condition(df, condition).to_numpy(dtype=np.bool_)
+
+            if i < n - 1:
+                ops[i] = EXIT_OP_OR if (condition.nextOperator or "AND") == "OR" else EXIT_OP_AND
+
+        return ExitConditionSet(signals, kinds, values, ops)
 
     def _evaluate_condition(
         self,
@@ -99,7 +184,10 @@ class StrategyParser:
             )
             return self._cross(price, indicator, condition.crossDirection or "above")
 
-        # 4. 수익/손실 (포지션 기반이라 별도 처리 필요)
+        # 4. 수익/손실
+        # 진입가를 알아야 판단할 수 있어 여기서는 계산하지 못한다. 청산 조건은
+        # compile_exit_conditions 가 따로 풀어 order_func_nb 가 봉마다 평가한다.
+        # 매수 조건에 들어오면 포지션이 없으니 항상 False 가 맞다.
         elif template == "profit_loss":
             return pd.Series(False, index=df.index)
 

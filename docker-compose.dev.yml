@@ -30,13 +30,23 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
   # ===========================================================================
-  # Celery Worker - 개발 모드
+  # RQ Worker - 개발 모드
   # ===========================================================================
-  celery-worker:
+  rq-worker:
     volumes:
       # 소스 코드 마운트
       - ./backend:/app
       - numba_cache:/app/.numba_cache
+    environment:
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+
+  # ===========================================================================
+  # RQ Cron - 개발 모드
+  # ===========================================================================
+  rq-cron:
+    volumes:
+      - ./backend:/app
     environment:
       - DEBUG=true
       - LOG_LEVEL=DEBUG

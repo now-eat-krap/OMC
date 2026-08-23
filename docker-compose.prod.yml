@@ -36,9 +36,18 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1
 
   # ===========================================================================
-  # Celery Worker - 프로덕션 모드
+  # RQ Worker - 프로덕션 모드
   # ===========================================================================
-  celery-worker:
+  rq-worker:
+    environment:
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - SENTRY_DSN=${SENTRY_DSN:-}
+
+  # ===========================================================================
+  # RQ Cron - 프로덕션 모드
+  # ===========================================================================
+  rq-cron:
     environment:
       - DEBUG=false
       - LOG_LEVEL=INFO

@@ -33,15 +33,20 @@ export function useLocalStorage<T>(
   const setValue = useCallback(
     (value: T | ((prev: T) => T)) => {
       try {
-        // 함수형 업데이트 지원
-        const valueToStore = value instanceof Function ? value(storedValue) : value
-        setStoredValue(valueToStore)
-        window.localStorage.setItem(key, JSON.stringify(valueToStore))
+        setStoredValue((prev) => {
+          // 함수형 업데이트 지원: 항상 최신 state(prev)를 기반으로 계산
+          const valueToStore = value instanceof Function ? value(prev) : value
+
+          // 상태 변경과 함께 로컬 스토리지 저장도 수행 (일관성 보장)
+          window.localStorage.setItem(key, JSON.stringify(valueToStore))
+
+          return valueToStore
+        })
       } catch {
         // 로컬 스토리지 접근 실패 시 조용히 실패
       }
     },
-    [key, storedValue]
+    [key]
   )
 
   return [storedValue, setValue]

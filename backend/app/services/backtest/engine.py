@@ -12,7 +12,13 @@ from vectorbt.portfolio import nb as portfolio_nb
 from app.core.config import get_coin_precision
 from app.schemas import BacktestRequest, BacktestResult, SentenceCondition
 from app.services.backtest.analyzer import ResultAnalyzer
-from app.services.backtest.strategy import StrategyParser
+from app.services.backtest.strategy import (
+    EXIT_KIND_LOSS,
+    EXIT_KIND_PROFIT,
+    EXIT_KIND_SIGNAL,
+    EXIT_OP_AND,
+    StrategyParser,
+)
 from app.services.data import DataService
 from app.utils import safe_float
 from app.utils.date_utils import adjust_start_date_for_timeframe
@@ -27,27 +33,84 @@ logger = logging.getLogger(__name__)
 # 메서드 내부에 클로저로 정의하면 요청마다 새 함수 객체가 생성되어
 # Numba가 매번 재컴파일합니다 (요청당 수 초의 컴파일 오버헤드).
 # 모듈 레벨 정의 시 프로세스당 1회만 컴파일되며,
-# 서버 기동 시 warmup_numba_jit()이 이 경로를 미리 컴파일합니다.
+# 워커 기동 시 warmup_numba_jit()이 이 경로를 미리 컴파일합니다.
 @njit
-def order_func_nb(c, entries, exits, open_prices, prec_mult, fees, slippage):
+def _eval_exit_cond_nb(k, idx, entry_price, prev_close, signals, kinds, values):
+    """청산 조건 k 하나를 현재 봉에서 평가한다
+
+    익절/손절은 '전 봉 종가가 진입가 대비 몇 %인가'로 판단한다. 다른 조건들이
+    전 봉 종가 기준 시그널을 한 칸 밀어서 이번 봉 시가에 체결하는 것과 같은
+    규칙이다. 진입 봉에서는 prev_close 가 진입 전 가격이므로 평가하지 않는다.
+    """
+    kind = kinds[k]
+    if kind == EXIT_KIND_SIGNAL:
+        return signals[idx, k]
+    if entry_price <= 0.0 or prev_close <= 0.0:
+        return False
+    pnl_pct = (prev_close / entry_price - 1.0) * 100.0
+    if kind == EXIT_KIND_PROFIT:
+        return pnl_pct >= values[k]
+    if kind == EXIT_KIND_LOSS:
+        return pnl_pct <= -values[k]
+    return False
+
+
+@njit
+def _should_exit_nb(idx, entry_price, prev_close, signals, kinds, values, ops):
+    """청산 조건 전체를 왼쪽부터 차례로 AND/OR 결합한다 (StrategyParser 와 같은 순서)"""
+    n = kinds.shape[0]
+    result = _eval_exit_cond_nb(0, idx, entry_price, prev_close, signals, kinds, values)
+    for k in range(n - 1):
+        nxt = _eval_exit_cond_nb(k + 1, idx, entry_price, prev_close, signals, kinds, values)
+        if ops[k] == EXIT_OP_AND:
+            result = result and nxt
+        else:
+            result = result or nxt
+    return result
+
+
+@njit
+def order_func_nb(
+    c,
+    entries,
+    exit_signals,
+    exit_kinds,
+    exit_values,
+    exit_ops,
+    open_prices,
+    close_prices,
+    prec_mult,
+    fees,
+    slippage,
+):
     """주문 함수 - 각 봉마다 호출
 
     c: OrderContext (현재 상태 정보 포함)
     복리 재투자 + 코인별 정밀도 버림 처리를 수행합니다.
+
+    청산 조건은 미리 합쳐진 하나의 배열이 아니라 조건별 배열로 받는다.
+    익절/손절은 진입가를 알아야 해서 여기서만 판단할 수 있기 때문이다.
+    진입가는 vectorbt 가 채워 주는 c.pos_record_now['entry_price'] (슬리피지 반영
+    체결가) 를 쓴다. trades 의 Avg Entry Price 와 같은 값이다.
     """
     idx = c.i
 
     # 현재 포지션 보유 여부
     has_position = c.position_now > 0
 
-    # 청산 시그널 (포지션 보유 중 + 청산 시그널)
-    if has_position and exits[idx]:
-        return portfolio_nb.order_nb(
-            size=-c.position_now,
-            price=open_prices[idx],
-            fees=fees,
-            slippage=slippage,
-        )
+    # 청산 (포지션 보유 중 + 청산 조건 충족)
+    if has_position:
+        entry_price = c.pos_record_now["entry_price"]
+        prev_close = close_prices[idx - 1] if idx > 0 else 0.0
+        if _should_exit_nb(
+            idx, entry_price, prev_close, exit_signals, exit_kinds, exit_values, exit_ops
+        ):
+            return portfolio_nb.order_nb(
+                size=-c.position_now,
+                price=open_prices[idx],
+                fees=fees,
+                slippage=slippage,
+            )
 
     # 진입 시그널 (포지션 없음 + 진입 시그널)
     if not has_position and entries[idx]:
@@ -118,17 +181,29 @@ class BacktestEngine:
         # 최소 1000개의 warmup 보장 (RSI 등 수렴형 지표가 정확한 값에 도달)
         return max(max_period + 10, 1000)
 
-    async def run(self, request: BacktestRequest) -> BacktestResult:
+    async def run(self, request: BacktestRequest, on_progress: callable = None) -> BacktestResult:
         """백테스트 실행
 
         Args:
             request: 백테스트 요청
+            on_progress: 진행률 콜백 함수 (message: str, percent: int)
 
         Returns:
             BacktestResult
         """
+
+        # 헬퍼 내부 함수: 진행률 업데이트
+        def update(msg: str, p: int):
+            if on_progress:
+                try:
+                    on_progress(msg, p)
+                except Exception:
+                    pass  # 콜백 에러는 무시
+
         profiling = {}
         total_start = time.perf_counter()
+
+        update("데이터 준비 중...", 0)
 
         # 0. Warmup 기간 계산
         step_start = time.perf_counter()
@@ -137,6 +212,7 @@ class BacktestEngine:
         profiling["0_warmup_calc"] = time.perf_counter() - step_start
 
         # 1. OHLCV 데이터 수집 (warmup 포함)
+        update("데이터 수집 중...", 10)
         step_start = time.perf_counter()
         df_full = self.data_service.get_ohlcv_dataframe(
             symbol=request.symbol,
@@ -155,15 +231,19 @@ class BacktestEngine:
         profiling["data_rows"] = len(df)
 
         # 2. 매수/매도 시그널 생성
+        update("거래 시그널 분석 중...", 30)
         step_start = time.perf_counter()
         buy_signal = self.strategy_parser.generate_signal(df, request.buyConditions)
         profiling["2a_buy_signal"] = time.perf_counter() - step_start
 
+        # 청산 조건은 하나로 합치지 않고 조건별로 풀어 둔다. 익절/손절은 진입가를
+        # 알아야 해서 시뮬레이션 루프(order_func_nb) 안에서만 판단할 수 있다
         step_start = time.perf_counter()
-        sell_signal = self.strategy_parser.generate_signal(df, request.sellConditions)
+        exit_set = self.strategy_parser.compile_exit_conditions(df, request.sellConditions)
         profiling["2b_sell_signal"] = time.perf_counter() - step_start
 
         # 3. 요청 기간으로 데이터 트림 (warmup 제외)
+        update("데이터 전처리 중...", 40)
         step_start = time.perf_counter()
         if request.startDate:
             adjusted_start_date = adjust_start_date_for_timeframe(
@@ -172,7 +252,7 @@ class BacktestEngine:
             start_filter = df.index >= adjusted_start_date
             df_trimmed = df[start_filter]
             buy_signal = buy_signal[start_filter]
-            sell_signal = sell_signal[start_filter]
+            exit_set = exit_set[np.asarray(start_filter)]
         else:
             df_trimmed = df
 
@@ -180,8 +260,9 @@ class BacktestEngine:
         profiling["3_data_trim"] = time.perf_counter() - step_start
         profiling["trimmed_rows"] = len(df_trimmed)
 
-        # 4. 시그널 없으면 빈 결과 반환
-        if not buy_signal.any() and not sell_signal.any():
+        # 4. 진입 시그널이 없으면 거래가 생길 수 없으므로 빈 결과 반환
+        if not buy_signal.any():
+            update("결과 정리 중...", 90)
             ohlcv_data = self.result_analyzer.build_ohlcv(df_trimmed)
             indicators_data = self.result_analyzer.extract_indicators(
                 df, all_conditions, valid_timestamps
@@ -189,6 +270,8 @@ class BacktestEngine:
 
             profiling["total"] = time.perf_counter() - total_start
             logger.debug(f"[PROFILING - No Trades] {profiling}")
+
+            update("완료", 100)
 
             return BacktestResult(
                 totalReturn=0,
@@ -206,6 +289,7 @@ class BacktestEngine:
             )
 
         # 5. VectorBT 포트폴리오 시뮬레이션 (from_order_func: 복리 + 정확한 버림 처리)
+        update("포트폴리오 시뮬레이션 중...", 50)
         step_start = time.perf_counter()
         close = df_trimmed["close"]
         open_price = df_trimmed["open"]
@@ -222,8 +306,9 @@ class BacktestEngine:
         vbt_freq = freq_map.get(request.timeframe, "1D")
 
         # 신호를 1기간 shift하여 "어제 신호 → 오늘 시가 진입" 시뮬레이션
+        # (익절/손절은 order_func_nb 가 전 봉 종가로 판단하므로 같은 규칙이 적용된다)
         entries_shifted = buy_signal.shift(1).fillna(False).astype(bool)
-        exits_shifted = sell_signal.shift(1).fillna(False).astype(bool)
+        exit_set = exit_set.shifted(1)
 
         # 최소주문수량 적용을 위한 precision 조회
         amount_prec, price_prec = get_coin_precision(request.symbol)
@@ -231,8 +316,8 @@ class BacktestEngine:
 
         # 배열 준비 (numpy)
         entries_arr = entries_shifted.values.astype(np.bool_)
-        exits_arr = exits_shifted.values.astype(np.bool_)
         open_arr = open_price.values.astype(np.float64)
+        close_arr = close.values.astype(np.float64)
         fees_rate = request.feeRate / 100
         slippage_rate = request.slippage / 100
 
@@ -243,8 +328,12 @@ class BacktestEngine:
             close.to_frame(),  # pandas DataFrame으로 전달
             order_func_nb,
             entries_arr,
-            exits_arr,
+            exit_set.signals,
+            exit_set.kinds,
+            exit_set.values,
+            exit_set.ops,
             open_arr,
+            close_arr,
             precision_mult,
             fees_rate,
             slippage_rate,
@@ -275,12 +364,21 @@ VectorBT 실제 수량: {first_order["Size"]}
 """)
 
         # 6. 결과 추출
+        update("결과 정리 중...", 90)
         step_start = time.perf_counter()
 
         total_return = safe_float(portfolio.total_return() * 100)
 
-        # USDT 절대값 계산
+        # 포트폴리오 가치 시계열. from_order_func 에 close 를 DataFrame 으로 넘겨서
+        # value() 도 (n_bars, 1) DataFrame 으로 나온다. 아래 계산과 수익 곡선은
+        # 봉 단위 Series 를 전제하므로 열 하나를 꺼내 Series 로 만든다.
+        # (DataFrame 인 채로 items() 를 돌리면 행이 아니라 열을 순회해서 수익 곡선이
+        # [{"date": "close", "value": 0}] 한 점으로 뭉개졌다)
         equity = portfolio.value()
+        if getattr(equity, "ndim", 1) == 2:
+            equity = equity.iloc[:, 0]
+
+        # USDT 절대값 계산
         final_equity = float(equity.iloc[-1])
         total_return_usdt = safe_float(final_equity - request.initialCapital)
 
@@ -321,9 +419,8 @@ VectorBT 실제 수량: {first_order["Size"]}
 
         profiling["5a_stats"] = time.perf_counter() - step_start
 
-        # 수익 곡선
+        # 수익 곡선 (위에서 Series 로 만든 equity 를 그대로 쓴다)
         step_start = time.perf_counter()
-        equity = portfolio.value()
         equity_curve = self.result_analyzer.build_equity_curve(equity)
         profiling["5b_equity_curve"] = time.perf_counter() - step_start
 

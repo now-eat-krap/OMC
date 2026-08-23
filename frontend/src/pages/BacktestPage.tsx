@@ -1,9 +1,8 @@
 // 전략 백테스팅 페이지
-// 터미널 레이아웃: 툴바 / 차트 / 결과 탭 + 오른쪽 전략 레일
+// 딥 그린 레이아웃: 툴바 / 차트 / 결과 탭 + 오른쪽 전략 레일
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { X } from 'lucide-react'
-import { useLocalStorage } from '../hooks/useLocalStorage'
 import {
   SettingsModal,
   AssetConfig,
@@ -21,7 +20,7 @@ import type {
   TimeFrame,
   BacktestResult,
 } from '../components/backtest'
-import { runBacktest } from '../services/api'
+import { BacktestCancelledError, runBacktest } from '../services/api'
 
 export default function BacktestPage() {
   // 모달 상태
@@ -43,19 +42,47 @@ export default function BacktestPage() {
   // ========================================
   // 로컬 스토리지에 저장되는 설정들
   // ========================================
-  const [savedSettings, setSavedSettings] = useLocalStorage('backtest-strategy-settings', {
-    // 기본설정
-    asset: 'BTC/USDT',
-    startDate: '',
-    endDate: getYesterday(),
-    timeFrame: '1d' as TimeFrame,
-    initialCapital: 1000000,
-    // 거래설정
-    tradingConfig: DEFAULT_TRADING_CONFIG,
-    // 전략조건
-    buyConditions: [] as SentenceCondition[],
-    sellConditions: [] as SentenceCondition[],
+  const [savedSettings, setSavedSettings] = useState(() => {
+    try {
+      const item = window.localStorage.getItem('backtest-strategy-settings')
+      // 값이 있으면 파싱해서 반환
+      if (item) {
+        return JSON.parse(item)
+      }
+      // 없으면 기본값 반환
+      return {
+        asset: 'BTC/USDT',
+        startDate: '',
+        endDate: getYesterday(),
+        timeFrame: '1d' as TimeFrame,
+        initialCapital: 1000000,
+        tradingConfig: DEFAULT_TRADING_CONFIG,
+        buyConditions: [] as SentenceCondition[],
+        sellConditions: [] as SentenceCondition[],
+      }
+    } catch {
+      // 에러 시 기본값 반환
+      return {
+        asset: 'BTC/USDT',
+        startDate: '',
+        endDate: getYesterday(),
+        timeFrame: '1d' as TimeFrame,
+        initialCapital: 1000000,
+        tradingConfig: DEFAULT_TRADING_CONFIG,
+        buyConditions: [] as SentenceCondition[],
+        sellConditions: [] as SentenceCondition[],
+      }
+    }
   })
+
+  // 설정이 변경되면 로컬 스토리지에 저장
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('backtest-strategy-settings', JSON.stringify(savedSettings))
+    } catch (e) {
+      console.error('Failed to save settings:', e)
+    }
+  }, [savedSettings])
 
   // 저장된 설정에서 값 추출
   const {
@@ -70,21 +97,22 @@ export default function BacktestPage() {
   } = savedSettings
 
   // 개별 setter 함수들 (기존 코드와의 호환성을 위해)
-  const setAsset = (newAsset: string) => setSavedSettings((prev) => ({ ...prev, asset: newAsset }))
+  const setAsset = (newAsset: string) =>
+    setSavedSettings((prev: any) => ({ ...prev, asset: newAsset }))
   const setStartDate = (newStartDate: string) =>
-    setSavedSettings((prev) => ({ ...prev, startDate: newStartDate }))
+    setSavedSettings((prev: any) => ({ ...prev, startDate: newStartDate }))
   const setEndDate = (newEndDate: string) =>
-    setSavedSettings((prev) => ({ ...prev, endDate: newEndDate }))
+    setSavedSettings((prev: any) => ({ ...prev, endDate: newEndDate }))
   const setTimeFrame = (newTimeFrame: TimeFrame) =>
-    setSavedSettings((prev) => ({ ...prev, timeFrame: newTimeFrame }))
+    setSavedSettings((prev: any) => ({ ...prev, timeFrame: newTimeFrame }))
   const setInitialCapital = (newCapital: number) =>
-    setSavedSettings((prev) => ({ ...prev, initialCapital: newCapital }))
+    setSavedSettings((prev: any) => ({ ...prev, initialCapital: newCapital }))
   const setTradingConfig = (newConfig: TradingConfig) =>
-    setSavedSettings((prev) => ({ ...prev, tradingConfig: newConfig }))
+    setSavedSettings((prev: any) => ({ ...prev, tradingConfig: newConfig }))
   const setBuyConditions = (newConditions: SentenceCondition[]) =>
-    setSavedSettings((prev) => ({ ...prev, buyConditions: newConditions }))
+    setSavedSettings((prev: any) => ({ ...prev, buyConditions: newConditions }))
   const setSellConditions = (newConditions: SentenceCondition[]) =>
-    setSavedSettings((prev) => ({ ...prev, sellConditions: newConditions }))
+    setSavedSettings((prev: any) => ({ ...prev, sellConditions: newConditions }))
 
   // 페이지 로드 시 기본 코인(BTC/USDT)의 시작일 가져오기
   useEffect(() => {
@@ -110,14 +138,19 @@ export default function BacktestPage() {
 
   // 코인 선택 핸들러 (시작일도 함께 저장)
   const handleAssetChange = (newAsset: string, newStartDate: string) => {
-    setAsset(newAsset)
     setAssetStartDate(newStartDate)
-    // 백테스트 시작일도 새 심볼의 시작일로 업데이트
-    setStartDate(newStartDate)
+    // 자산과 시작일을 한 번에 업데이트 (불필요한 리렌더링 방지)
+    setSavedSettings((prev: any) => ({
+      ...prev,
+      asset: newAsset,
+      startDate: newStartDate,
+    }))
   }
 
   // 백테스팅 상태
   const [isRunning, setIsRunning] = useState(false)
+  // 실행 중인 백테스트를 중지할 때 쓰는 핸들. 실행마다 새로 만든다
+  const abortRef = useRef<AbortController | null>(null)
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -130,22 +163,33 @@ export default function BacktestPage() {
   const chartRef = useRef<BacktestChartHandle>(null)
 
   // 백테스트 실행 (실제 API 호출)
+  const handleCancelBacktest = () => {
+    abortRef.current?.abort()
+  }
+
   const handleRunBacktest = async () => {
     setIsRunning(true)
     setError(null)
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       // 백엔드 API 호출
-      const response = await runBacktest({
-        symbol: asset,
-        timeframe: timeFrame,
-        startDate,
-        endDate,
-        initialCapital,
-        tradingConfig,
-        buyConditions,
-        sellConditions,
-      })
+      const response = await runBacktest(
+        {
+          symbol: asset,
+          timeframe: timeFrame,
+          startDate,
+          endDate,
+          initialCapital,
+          tradingConfig,
+          buyConditions,
+          sellConditions,
+        },
+        undefined,
+        { signal: controller.signal }
+      )
 
       // 결과를 BacktestResult 형식으로 변환
       const backtestResult: BacktestResult = {
@@ -172,10 +216,13 @@ export default function BacktestPage() {
 
       setResult(backtestResult)
     } catch (err) {
+      // 사용자가 직접 중지한 것은 오류가 아니다. 조용히 이전 상태로 돌아간다
+      if (err instanceof BacktestCancelledError) return
       const errorMessage =
         err instanceof Error ? err.message : '백테스트 실행 중 오류가 발생했습니다.'
       setError(errorMessage)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setIsRunning(false)
     }
   }
@@ -276,6 +323,7 @@ export default function BacktestPage() {
         mode={mode}
         onModeChange={setMode}
         onRunBacktest={handleRunBacktest}
+        onCancelBacktest={handleCancelBacktest}
         isRunning={isRunning}
         canRun={hasConditions}
         onOpenSettings={() => setIsModalOpen(true)}

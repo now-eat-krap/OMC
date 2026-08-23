@@ -1,6 +1,9 @@
-# 캔들 캐시 스케줄러
-# 서버 시작 시 자동 초기화 + 매일 00:05 UTC 업데이트
+# 캔들 캐시 관리
+# 서버 시작 시 자동 초기화 + 일일 갱신 함수
 # 각 타임프레임별로 Binance에서 직접 데이터 가져오기
+#
+# 일일 갱신의 "언제"는 여기서 정하지 않습니다. app/cron.py가 매일 00:05 UTC에
+# maintenance 큐에 넣고 워커가 update_cache_daily를 실행합니다.
 
 import asyncio
 import logging
@@ -9,8 +12,6 @@ from datetime import datetime, timedelta
 from typing import Any
 
 import ccxt
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
 
 from app.config import SUPPORTED_TIMEFRAMES, TOP_COIN_SYMBOLS, get_coin_start_date
 from app.services.cache import candle_cache
@@ -21,9 +22,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
-
-# 글로벌 스케줄러 인스턴스
-scheduler = AsyncIOScheduler()
 
 
 def fetch_candles_sync(
@@ -149,7 +147,7 @@ async def initialize_cache_if_empty():
 
 
 async def update_cache_daily():
-    """매일 새 캔들 추가 (스케줄러에서 호출)"""
+    """매일 새 캔들 추가 (app/tasks/cache_tasks.py가 호출)"""
     if not candle_cache.is_available:
         logger.warning("Redis 연결 불가. 업데이트 건너뜀.")
         return
@@ -181,26 +179,16 @@ async def update_cache_daily():
     logger.info(f"=== 일일 캐시 업데이트 완료 ({yesterday}) ===")
 
 
-def setup_scheduler():
-    """스케줄러 설정 (매일 00:05 UTC)"""
-    # 매일 00:05 UTC에 실행
-    scheduler.add_job(
-        update_cache_daily,
-        trigger=CronTrigger(hour=0, minute=5),  # UTC 00:05 = 한국 09:05
-        id="daily_cache_update",
-        name="Daily Cache Update",
-        replace_existing=True,
-    )
-
-    logger.info("스케줄러 설정 완료: 매일 00:05 UTC (한국 09:05)")
-
-
 async def warmup_numba_jit():
-    """Numba JIT 컴파일 워밍업 - 서버 시작 시 실행
+    """Numba JIT 컴파일 워밍업 - RQ 워커 기동 시 실행 (app/worker.py)
 
     VectorBT는 내부적으로 Numba JIT 컴파일을 사용합니다.
-    첫 실행 시 컴파일 오버헤드가 발생하므로, 서버 시작 시
-    더미 데이터로 미리 컴파일하여 사용자 요청 시 빠르게 처리합니다.
+    첫 실행 시 컴파일 오버헤드가 발생하므로, 워커를 띄우기 전에
+    더미 데이터로 미리 컴파일해 fork된 작업 프로세스가 물려받게 합니다.
+
+    API 프로세스에서는 부르지 않습니다. 백테스트는 전부 워커가 돌리고
+    API 요청 경로에는 Numba 함수를 호출하는 곳이 없어서, 여기서 돌리면
+    쓰지도 않을 컴파일에 기동 시간만 약 60초 늘어납니다.
     """
     import numpy as np
     import pandas as pd
@@ -239,10 +227,23 @@ async def warmup_numba_jit():
         # 실제 백테스트 엔진이 사용하는 from_order_func 경로 워밍업
         # (from_signals와 별도의 Numba 컴파일 경로이므로 반드시 함께 워밍업)
         from app.services.backtest.engine import order_func_nb
+        from app.services.backtest.strategy import (
+            EXIT_KIND_PROFIT,
+            EXIT_KIND_SIGNAL,
+            EXIT_OP_OR,
+        )
 
         dummy_entries_arr = dummy_entries.values.astype(np.bool_)
-        dummy_exits_arr = dummy_exits.values.astype(np.bool_)
         dummy_open_arr = dummy_close.values.astype(np.float64)
+        dummy_close_arr = dummy_close.values.astype(np.float64)
+
+        # 청산 조건 배열: 엔진의 ExitConditionSet 과 같은 모양/타입.
+        # 시그널 조건 하나 + 익절 조건 하나를 OR 로 묶어 두 분기 모두 컴파일한다
+        dummy_exit_signals = np.zeros((100, 2), dtype=np.bool_)
+        dummy_exit_signals[:, 0] = dummy_exits.values
+        dummy_exit_kinds = np.array([EXIT_KIND_SIGNAL, EXIT_KIND_PROFIT], dtype=np.int64)
+        dummy_exit_values = np.array([0.0, 5.0], dtype=np.float64)
+        dummy_exit_ops = np.array([EXIT_OP_OR], dtype=np.int64)
 
         # 주의: 인자 타입이 실제 엔진 호출과 정확히 일치해야 합니다.
         # Numba는 타입 시그니처별로 재컴파일하므로, 예를 들어 init_cash를
@@ -252,8 +253,12 @@ async def warmup_numba_jit():
             dummy_close.to_frame(),
             order_func_nb,
             dummy_entries_arr,
-            dummy_exits_arr,
+            dummy_exit_signals,
+            dummy_exit_kinds,
+            dummy_exit_values,
+            dummy_exit_ops,
             dummy_open_arr,
+            dummy_close_arr,
             10**5,  # precision_mult (int - 엔진과 동일)
             0.001,  # fees (float)
             0.0005,  # slippage (float)
@@ -281,24 +286,18 @@ async def warmup_numba_jit():
 
 @asynccontextmanager
 async def lifespan(app):
-    """FastAPI 라이프사이클 관리"""
+    """FastAPI 라이프사이클 관리
+
+    Numba 워밍업은 여기서 하지 않습니다. 백테스트는 워커가 돌리므로
+    워밍업도 워커 기동 시(app/worker.py)에 합니다.
+    """
     # 시작 시
     logger.info("=== 서버 시작 ===")
 
-    # 1. Numba JIT 워밍업 (첫 요청 지연 방지)
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, lambda: asyncio.run(warmup_numba_jit()))
-
-    # 2. Redis 비어있으면 초기화 (백그라운드)
+    # Redis 비어있으면 초기화 (백그라운드)
     asyncio.create_task(initialize_cache_if_empty())
-
-    # 3. 스케줄러 설정 및 시작
-    setup_scheduler()
-    scheduler.start()
-    logger.info("스케줄러 시작됨")
 
     yield
 
     # 종료 시
-    scheduler.shutdown()
     logger.info("=== 서버 종료 ===")

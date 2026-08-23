@@ -1,20 +1,31 @@
-# Celery 백테스트 작업 정의
-# 백그라운드에서 백테스트 실행
+"""RQ 백테스트 작업 정의"""
 
 import asyncio
 import logging
+import time
 from typing import Any
 
-from app.celery_app import celery_app
+import sentry_sdk
+from rq import get_current_job
+
 from app.schemas import BacktestRequest
-from app.services.backtest import BacktestEngine
+from app.services.backtest.engine import BacktestEngine
 
 logger = logging.getLogger(__name__)
 
 
-@celery_app.task(bind=True, name="run_backtest")
-def run_backtest_task(self, request_data: dict[str, Any]) -> dict[str, Any]:
-    """백테스트 작업 (Celery Task)
+def update_job_progress(message: str, progress: int = 0):
+    """작업 진행 상태 업데이트 (job.meta 사용)"""
+    job = get_current_job()
+    if job:
+        job.meta["message"] = message
+        job.meta["progress"] = progress
+        job.meta["updated_at"] = time.time()
+        job.save_meta()
+
+
+def run_backtest_task(request_data: dict[str, Any]) -> dict[str, Any]:
+    """백테스트 작업 (RQ Task)
 
     Args:
         request_data: BacktestRequest를 딕셔너리로 변환한 데이터
@@ -22,41 +33,35 @@ def run_backtest_task(self, request_data: dict[str, Any]) -> dict[str, Any]:
     Returns:
         BacktestResult를 딕셔너리로 변환한 결과
     """
-    task_id = self.request.id
-    logger.info(f"[Task {task_id}] 백테스트 작업 시작")
+    job = get_current_job()
+    job_id = job.id if job else "unknown"
+    logger.info(f"[Task {job_id}] 백테스트 작업 시작")
 
     try:
+        # 진행 상태 업데이트
+        update_job_progress("작업 시작...", 0)
+
         # 딕셔너리를 BacktestRequest 모델로 변환
         request = BacktestRequest(**request_data)
 
-        # 상태 업데이트: 시작
-        self.update_state(
-            state="RUNNING", meta={"status": "running", "message": "백테스트 실행 중..."}
-        )
+        # 진행률 콜백 정의
+        def progress_callback(msg: str, p: int):
+            update_job_progress(msg, p)
 
         # 백테스트 실행 (BacktestEngine 사용)
         backtest_engine = BacktestEngine()
+        result = asyncio.run(backtest_engine.run(request, on_progress=progress_callback))
 
-        # 동기 환경에서 async 함수 실행
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        try:
-            result = loop.run_until_complete(backtest_engine.run(request))
-        finally:
-            loop.close()
+        update_job_progress("완료", 100)
+        logger.info(f"[Task {job_id}] 백테스트 작업 완료")
 
-        # 결과를 딕셔너리로 변환 (JSON 직렬화 가능하도록)
-        result_dict = result.model_dump()
-
-        logger.info(f"[Task {task_id}] 백테스트 작업 완료")
-
-        return {"status": "completed", "result": result_dict}
+        return {"status": "completed", "result": result.model_dump()}
 
     except Exception as e:
-        logger.error(f"[Task {task_id}] 백테스트 작업 실패: {str(e)}")
+        logger.error(f"[Task {job_id}] 백테스트 작업 실패: {str(e)}")
 
-        # 실패 상태로 업데이트
-        self.update_state(state="FAILURE", meta={"status": "failed", "error": str(e)})
+        # Sentry 에러 전송
+        sentry_sdk.capture_exception(e)
 
-        # 에러 다시 발생시켜 Celery가 실패로 처리하도록
+        update_job_progress(f"실패: {str(e)}", -1)
         raise
