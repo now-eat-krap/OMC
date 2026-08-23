@@ -7,6 +7,7 @@ import { createChart, ColorType, AreaSeries, HistogramSeries } from 'lightweight
 import type { IChartApi, Time } from 'lightweight-charts'
 import type { BacktestResult, SentenceCondition } from './types'
 import { formatCondition } from './formatCondition'
+import { serverTimeToUnix } from './serverTime'
 import { useTheme } from '../../theme/useTheme'
 import { getChartPalette } from '../../theme/chartColors'
 
@@ -161,16 +162,6 @@ function getInitialCapital(result: BacktestResult): number {
   return t ? (t.size || 0) * (t.entryPrice || 0) : 0
 }
 
-// 백엔드 날짜 문자열("2025-10-17T00:00:00" 또는 "2025-10-17 00:00:00")을 UTC 초로.
-// 타임존 표기가 없으면 UTC 로 간주한다
-function toUtcTimestamp(dateStr: string): number {
-  const iso = dateStr.includes(' ') ? dateStr.replace(' ', 'T') : dateStr
-  if (iso.endsWith('Z') || iso.includes('+')) {
-    return new Date(iso).getTime() / 1000
-  }
-  return new Date(`${iso}Z`).getTime() / 1000
-}
-
 // 수익곡선 탭 콘텐츠
 // 곡선은 서버가 봉마다 계산한 포트폴리오 가치(equityCurve)를 그대로 그린다.
 // 거래 청산 시점은 그 위에 런업/드로다운 히스토그램과 호버 정보로 얹는다
@@ -202,7 +193,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     ;(result.trades ?? []).forEach((trade, index) => {
       const timeStr = trade.isOpen ? trade.entryTime : trade.exitTime
       if (!timeStr) return
-      tradeAtTime.set(Math.floor(toUtcTimestamp(timeStr)), {
+      tradeAtTime.set(Math.floor(serverTimeToUnix(timeStr)), {
         tradeNum: index + 1,
         runup: trade.runup || 0,
         drawdown: trade.drawdown || 0,
@@ -210,7 +201,7 @@ function EquityTab({ result }: { result: BacktestResult | null }) {
     })
 
     const data = curve.map((point) => {
-      const time = Math.floor(toUtcTimestamp(point.date))
+      const time = Math.floor(serverTimeToUnix(point.date))
       const trade = tradeAtTime.get(time)
       return {
         time,

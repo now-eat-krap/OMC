@@ -30,6 +30,7 @@ import type {
   MouseEventParams,
 } from 'lightweight-charts'
 import type { TradeRecord, OHLCVData, IndicatorData } from './types'
+import { serverTimeToUnix } from './serverTime'
 import { getChartPalette } from '../../theme/chartColors'
 import { useTheme } from '../../theme/useTheme'
 
@@ -67,10 +68,9 @@ function toChartTime(timestamp: number): Time {
   return (timestamp / 1000) as Time
 }
 
-// ISO 문자열을 lightweight-charts Time 형식으로 변환
+// 서버 시각 문자열을 lightweight-charts Time 형식으로 변환 (UTC 로 해석)
 function isoToChartTime(isoString: string): Time {
-  const date = new Date(isoString)
-  return (date.getTime() / 1000) as Time
+  return serverTimeToUnix(isoString) as Time
 }
 
 // 지표 색상 팔레트
@@ -109,7 +109,7 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
           }
 
           // ISO 문자열을 타임스탬프로 변환
-          const timestamp = new Date(isoString).getTime() / 1000
+          const timestamp = serverTimeToUnix(isoString)
 
           const timeScale = chartRef.current.timeScale()
           const visibleRange = timeScale.getVisibleRange()
