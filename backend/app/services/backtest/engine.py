@@ -369,8 +369,16 @@ VectorBT 실제 수량: {first_order["Size"]}
 
         total_return = safe_float(portfolio.total_return() * 100)
 
-        # USDT 절대값 계산
+        # 포트폴리오 가치 시계열. from_order_func 에 close 를 DataFrame 으로 넘겨서
+        # value() 도 (n_bars, 1) DataFrame 으로 나온다. 아래 계산과 수익 곡선은
+        # 봉 단위 Series 를 전제하므로 열 하나를 꺼내 Series 로 만든다.
+        # (DataFrame 인 채로 items() 를 돌리면 행이 아니라 열을 순회해서 수익 곡선이
+        # [{"date": "close", "value": 0}] 한 점으로 뭉개졌다)
         equity = portfolio.value()
+        if getattr(equity, "ndim", 1) == 2:
+            equity = equity.iloc[:, 0]
+
+        # USDT 절대값 계산
         final_equity = float(equity.iloc[-1])
         total_return_usdt = safe_float(final_equity - request.initialCapital)
 
@@ -411,9 +419,8 @@ VectorBT 실제 수량: {first_order["Size"]}
 
         profiling["5a_stats"] = time.perf_counter() - step_start
 
-        # 수익 곡선
+        # 수익 곡선 (위에서 Series 로 만든 equity 를 그대로 쓴다)
         step_start = time.perf_counter()
-        equity = portfolio.value()
         equity_curve = self.result_analyzer.build_equity_curve(equity)
         profiling["5b_equity_curve"] = time.perf_counter() - step_start
 
