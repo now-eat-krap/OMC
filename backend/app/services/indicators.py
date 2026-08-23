@@ -239,6 +239,90 @@ def bollinger_bands(
     return upper, middle, lower
 
 
+def atr(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """ATR (Average True Range) - TradingView ta.atr 과 동일 (RMA 스무딩)
+
+    True Range = max(고가-저가, |고가-전봉종가|, |저가-전봉종가|)
+    ATR = RMA(True Range, period)
+
+    Args:
+        high, low, close: 가격 시리즈
+        period: 기간 (기본 14)
+
+    Returns:
+        ATR 시리즈
+    """
+    prev_close = close.shift(1)
+    tr = pd.concat([high - low, (high - prev_close).abs(), (low - prev_close).abs()], axis=1).max(
+        axis=1
+    )
+    # 첫 봉은 전봉이 없어 고가-저가만 쓴다
+    tr.iloc[0] = float(high.iloc[0] - low.iloc[0])
+    # RMA: 첫 값은 SMA, 이후 alpha=1/period 지수 평활 (rsi 의 _rma_numba 와 같은 정의)
+    tr_arr = tr.to_numpy(dtype=np.float64)
+    out = np.full(len(tr_arr), np.nan)
+    if len(tr_arr) >= period:
+        out[period - 1] = tr_arr[:period].mean()
+        alpha = 1.0 / period
+        for i in range(period, len(tr_arr)):
+            out[i] = alpha * tr_arr[i] + (1.0 - alpha) * out[i - 1]
+    return pd.Series(out, index=close.index)
+
+
+def keltner_channel(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    period: int = 20,
+    multiplier: float = 2.0,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """켈트너 채널 - 중심 EMA(period), 폭 multiplier × ATR(period)
+
+    TradingView 기본값(EMA 20, ATR 길이 = 같은 period, 배수 2)을 따릅니다.
+
+    Returns:
+        (상단, 중간, 하단) 튜플
+    """
+    middle = ema(close, period)
+    band = atr(high, low, close, period) * multiplier
+    return middle + band, middle, middle - band
+
+
+def envelope(
+    close: pd.Series, period: int = 20, percent: float = 10.0
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """엔벨로프 - 중심 SMA(period), 폭 ±percent %
+
+    TradingView 기본값(길이 20, 10%)을 따릅니다.
+
+    Returns:
+        (상단, 중간, 하단) 튜플
+    """
+    middle = sma(close, period)
+    ratio = percent / 100.0
+    return middle * (1.0 + ratio), middle, middle * (1.0 - ratio)
+
+
+SUPPORTED_BAND_TYPES = ("bollinger", "keltner", "envelope")
+
+
+def bands(df: pd.DataFrame, band_type: str, period: int) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """밴드형 지표 공통 진입점. band_type 에 따라 (상단, 중간, 하단) 을 돌려준다
+
+    모르는 band_type 은 조용히 볼린저로 바꾸지 않고 에러를 낸다. UI 가 노출하는
+    선택지와 계산이 어긋난 채로 굴러가는 것을 막기 위해서다.
+    """
+    if band_type == "bollinger":
+        return bollinger_bands(df["close"], period)
+    if band_type == "keltner":
+        return keltner_channel(df["high"], df["low"], df["close"], period)
+    if band_type == "envelope":
+        return envelope(df["close"], period)
+    raise ValueError(
+        f"지원하지 않는 밴드 종류: {band_type} (가능: {', '.join(SUPPORTED_BAND_TYPES)})"
+    )
+
+
 def stochastic(
     high: pd.Series,
     low: pd.Series,
