@@ -189,7 +189,7 @@ export interface TaskSubmitResponse {
 /** 작업 상태 응답 */
 export interface TaskStatusResponse {
   task_id: string
-  status: 'pending' | 'running' | 'completed' | 'failed'
+  status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
   message?: string
   result?: BacktestResponse
   error?: string
@@ -252,9 +252,24 @@ export async function getBacktestStatus(taskId: string): Promise<TaskStatusRespo
   return response.json()
 }
 
+/** 사용자가 백테스트를 중지했을 때 던지는 에러. 호출부에서 일반 실패와 구분한다 */
+export class BacktestCancelledError extends Error {
+  constructor() {
+    super('백테스트가 취소되었습니다.')
+    this.name = 'BacktestCancelledError'
+  }
+}
+
 /**
  * 백테스트 작업 취소
+ *
+ * 대기 중이면 큐에서 빼고, 실행 중이면 워커의 작업 프로세스를 종료시킨다.
  */
+/** 취소 요청 실패는 무시한다. 사용자 입장에서는 이미 중지한 것이고 워커는 곧 끝난다 */
+function ignoreCancelFailure(): void {
+  return undefined
+}
+
 export async function cancelBacktest(taskId: string): Promise<void> {
   const response = await fetch(`${API_BASE_URL}/backtest/${taskId}`, {
     method: 'DELETE',
@@ -283,11 +298,20 @@ export async function runBacktest(
     buyConditions: SentenceCondition[]
     sellConditions: SentenceCondition[]
   },
-  onStatusUpdate?: (status: string, message?: string) => void
+  onStatusUpdate?: (status: string, message?: string) => void,
+  options?: { signal?: AbortSignal }
 ): Promise<BacktestResponse> {
+  const signal = options?.signal
+
   // 1. 작업 제출
   const submitResponse = await submitBacktest(params)
   const taskId = submitResponse.task_id
+
+  // 제출 직후 이미 중지됐으면 큐에서 바로 뺀다
+  if (signal?.aborted) {
+    await cancelBacktest(taskId).catch(ignoreCancelFailure)
+    throw new BacktestCancelledError()
+  }
 
   if (onStatusUpdate) {
     onStatusUpdate('pending', '작업이 큐에 추가되었습니다...')
@@ -299,6 +323,13 @@ export async function runBacktest(
   const startTime = Date.now()
 
   while (Date.now() - startTime < maxWaitTime) {
+    // 중지 요청이 들어왔으면 서버에 취소를 보내고 빠져나간다.
+    // 서버 응답은 기다리지 않는다 - 실패해도 사용자 입장에서는 이미 중지한 것이다
+    if (signal?.aborted) {
+      cancelBacktest(taskId).catch(ignoreCancelFailure)
+      throw new BacktestCancelledError()
+    }
+
     const statusResponse = await getBacktestStatus(taskId)
 
     if (onStatusUpdate) {
@@ -313,8 +344,22 @@ export async function runBacktest(
       throw new Error(statusResponse.error || '백테스트 실행 실패')
     }
 
-    // 대기
-    await new Promise((resolve) => setTimeout(resolve, pollInterval))
+    if (statusResponse.status === 'cancelled') {
+      throw new BacktestCancelledError()
+    }
+
+    // 대기 (중지 요청이 오면 바로 깨어난다)
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        signal?.removeEventListener('abort', onAbort)
+        resolve()
+      }, pollInterval)
+      function onAbort() {
+        clearTimeout(timer)
+        resolve()
+      }
+      signal?.addEventListener('abort', onAbort, { once: true })
+    })
   }
 
   // 타임아웃
