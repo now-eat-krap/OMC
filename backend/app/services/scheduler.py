@@ -227,10 +227,23 @@ async def warmup_numba_jit():
         # 실제 백테스트 엔진이 사용하는 from_order_func 경로 워밍업
         # (from_signals와 별도의 Numba 컴파일 경로이므로 반드시 함께 워밍업)
         from app.services.backtest.engine import order_func_nb
+        from app.services.backtest.strategy import (
+            EXIT_KIND_PROFIT,
+            EXIT_KIND_SIGNAL,
+            EXIT_OP_OR,
+        )
 
         dummy_entries_arr = dummy_entries.values.astype(np.bool_)
-        dummy_exits_arr = dummy_exits.values.astype(np.bool_)
         dummy_open_arr = dummy_close.values.astype(np.float64)
+        dummy_close_arr = dummy_close.values.astype(np.float64)
+
+        # 청산 조건 배열: 엔진의 ExitConditionSet 과 같은 모양/타입.
+        # 시그널 조건 하나 + 익절 조건 하나를 OR 로 묶어 두 분기 모두 컴파일한다
+        dummy_exit_signals = np.zeros((100, 2), dtype=np.bool_)
+        dummy_exit_signals[:, 0] = dummy_exits.values
+        dummy_exit_kinds = np.array([EXIT_KIND_SIGNAL, EXIT_KIND_PROFIT], dtype=np.int64)
+        dummy_exit_values = np.array([0.0, 5.0], dtype=np.float64)
+        dummy_exit_ops = np.array([EXIT_OP_OR], dtype=np.int64)
 
         # 주의: 인자 타입이 실제 엔진 호출과 정확히 일치해야 합니다.
         # Numba는 타입 시그니처별로 재컴파일하므로, 예를 들어 init_cash를
@@ -240,8 +253,12 @@ async def warmup_numba_jit():
             dummy_close.to_frame(),
             order_func_nb,
             dummy_entries_arr,
-            dummy_exits_arr,
+            dummy_exit_signals,
+            dummy_exit_kinds,
+            dummy_exit_values,
+            dummy_exit_ops,
             dummy_open_arr,
+            dummy_close_arr,
             10**5,  # precision_mult (int - 엔진과 동일)
             0.001,  # fees (float)
             0.0005,  # slippage (float)
