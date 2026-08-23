@@ -2,7 +2,7 @@
 // 워드마크, 자산 검색, 타임프레임, 모드 토글, 테마, 설정, 실행 버튼
 
 import { useState } from 'react'
-import { ChevronDown, Loader2, Play, Search, SlidersHorizontal } from 'lucide-react'
+import { ChevronDown, Play, Search, SlidersHorizontal, Square } from 'lucide-react'
 import type { TimeFrame } from './types'
 import { TIMEFRAME_LABELS } from './types'
 import AssetSearchModal from './AssetSearchModal'
@@ -30,6 +30,7 @@ interface BacktestToolbarProps {
   onModeChange: (mode: 'live' | 'backtest') => void
   // 백테스트 실행
   onRunBacktest: () => void
+  onCancelBacktest: () => void
   isRunning: boolean
   canRun: boolean
   // 설정 모달
@@ -44,6 +45,7 @@ export default function BacktestToolbar({
   mode,
   onModeChange,
   onRunBacktest,
+  onCancelBacktest,
   isRunning,
   canRun,
   onOpenSettings,
@@ -110,34 +112,36 @@ export default function BacktestToolbar({
             <span className="hidden md:inline">전략 편집</span>
           </button>
 
-          <button
-            onClick={() => {
-              // 실시간 모드에서 클릭 시 백테스트 모드로 전환 후 실행
-              if (mode === 'live') {
-                onModeChange('backtest')
-              }
-              onRunBacktest()
-            }}
-            disabled={!canRun || isRunning}
-            title={canRun ? '백테스트 실행' : '먼저 매수 또는 매도 조건을 추가하세요'}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-chip text-[14px] font-bold transition-opacity ${
-              canRun && !isRunning
-                ? 'bg-accent text-accent-ink hover:opacity-90'
-                : 'border border-line text-dim cursor-not-allowed'
-            }`}
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                실행 중
-              </>
-            ) : (
-              <>
-                <Play className="w-3 h-3" fill="currentColor" />
-                실행
-              </>
-            )}
-          </button>
+          {isRunning ? (
+            <button
+              onClick={onCancelBacktest}
+              title="백테스트 중지"
+              className="flex items-center gap-2 px-6 py-2.5 rounded-chip text-[14px] font-bold border border-accent/50 text-accent hover:bg-accent/10 transition-colors"
+            >
+              <Square className="w-3 h-3 animate-pulse" fill="currentColor" />
+              중지
+            </button>
+          ) : (
+            <button
+              onClick={() => {
+                // 실시간 모드에서 클릭 시 백테스트 모드로 전환 후 실행
+                if (mode === 'live') {
+                  onModeChange('backtest')
+                }
+                onRunBacktest()
+              }}
+              disabled={!canRun}
+              title={canRun ? '백테스트 실행' : '먼저 매수 또는 매도 조건을 추가하세요'}
+              className={`flex items-center gap-2 px-6 py-2.5 rounded-chip text-[14px] font-bold transition-opacity ${
+                canRun
+                  ? 'bg-accent text-accent-ink hover:opacity-90'
+                  : 'border border-line text-dim cursor-not-allowed'
+              }`}
+            >
+              <Play className="w-3 h-3" fill="currentColor" />
+              실행
+            </button>
+          )}
         </div>
       </div>
     </>

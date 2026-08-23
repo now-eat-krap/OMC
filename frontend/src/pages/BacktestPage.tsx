@@ -20,7 +20,7 @@ import type {
   TimeFrame,
   BacktestResult,
 } from '../components/backtest'
-import { runBacktest } from '../services/api'
+import { BacktestCancelledError, runBacktest } from '../services/api'
 
 export default function BacktestPage() {
   // 모달 상태
@@ -149,6 +149,8 @@ export default function BacktestPage() {
 
   // 백테스팅 상태
   const [isRunning, setIsRunning] = useState(false)
+  // 실행 중인 백테스트를 중지할 때 쓰는 핸들. 실행마다 새로 만든다
+  const abortRef = useRef<AbortController | null>(null)
   const [result, setResult] = useState<BacktestResult | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -161,22 +163,33 @@ export default function BacktestPage() {
   const chartRef = useRef<BacktestChartHandle>(null)
 
   // 백테스트 실행 (실제 API 호출)
+  const handleCancelBacktest = () => {
+    abortRef.current?.abort()
+  }
+
   const handleRunBacktest = async () => {
     setIsRunning(true)
     setError(null)
 
+    const controller = new AbortController()
+    abortRef.current = controller
+
     try {
       // 백엔드 API 호출
-      const response = await runBacktest({
-        symbol: asset,
-        timeframe: timeFrame,
-        startDate,
-        endDate,
-        initialCapital,
-        tradingConfig,
-        buyConditions,
-        sellConditions,
-      })
+      const response = await runBacktest(
+        {
+          symbol: asset,
+          timeframe: timeFrame,
+          startDate,
+          endDate,
+          initialCapital,
+          tradingConfig,
+          buyConditions,
+          sellConditions,
+        },
+        undefined,
+        { signal: controller.signal }
+      )
 
       // 결과를 BacktestResult 형식으로 변환
       const backtestResult: BacktestResult = {
@@ -203,10 +216,13 @@ export default function BacktestPage() {
 
       setResult(backtestResult)
     } catch (err) {
+      // 사용자가 직접 중지한 것은 오류가 아니다. 조용히 이전 상태로 돌아간다
+      if (err instanceof BacktestCancelledError) return
       const errorMessage =
         err instanceof Error ? err.message : '백테스트 실행 중 오류가 발생했습니다.'
       setError(errorMessage)
     } finally {
+      if (abortRef.current === controller) abortRef.current = null
       setIsRunning(false)
     }
   }
@@ -307,6 +323,7 @@ export default function BacktestPage() {
         mode={mode}
         onModeChange={setMode}
         onRunBacktest={handleRunBacktest}
+        onCancelBacktest={handleCancelBacktest}
         isRunning={isRunning}
         canRun={hasConditions}
         onOpenSettings={() => setIsModalOpen(true)}
