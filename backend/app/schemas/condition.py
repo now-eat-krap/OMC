@@ -21,6 +21,7 @@ class SentenceCondition(BaseModel):
         "candle_pattern",
         "volume",
         "price_change",
+        "expression",
     ]
 
     # 기본 슬롯
@@ -59,6 +60,11 @@ class SentenceCondition(BaseModel):
     # 가격 변동용
     priceChangePercent: float | None = None
     priceChangeDirection: Literal["up", "down"] | None = None
+
+    # 커스텀 식 (templateType == "expression").
+    # Pine 문법 부분집합: ta.*/math.* 함수, OHLCV 시리즈, 산술·비교·논리, [n] 과거 참조.
+    # 참/거짓으로 끝나야 한다. 예: "ta.rsi(close,14) < 30 and close > ta.sma(close,50)"
+    expression: str | None = None
 
     # 다음 조건과의 논리 연산자
     nextOperator: Literal["AND", "OR"] | None = "AND"

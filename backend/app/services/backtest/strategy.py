@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from app.schemas import SentenceCondition
+from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
 
 # 청산 조건 종류 (order_func_nb 에 넘기는 정수 코드)
@@ -245,6 +246,7 @@ class StrategyParser:
             threshold = avg_volume * (condition.volumeMultiplier or 2)
             return self._compare(df["volume"], threshold, condition.comparison or "gte")
 
+        # 10-2 에서 처리. (순서 유지를 위해 아래 두 분기 사이에 둔다)
         # 10. 가격 변동
         elif template == "price_change":
             pct_change = df["close"].pct_change() * 100
@@ -254,6 +256,12 @@ class StrategyParser:
                 return pct_change >= threshold
             else:
                 return pct_change <= -threshold
+
+        # 11. 커스텀 식 (Pine 부분집합). 파싱·화이트리스트 검증은 expression 모듈이 한다
+        elif template == "expression":
+            if not condition.expression:
+                raise ValueError("expression 템플릿에는 식이 필요합니다")
+            return expression_engine.evaluate_signal(df, condition.expression)
 
         return pd.Series(False, index=df.index)
 

@@ -4,10 +4,16 @@
 """
 
 from fastapi import APIRouter
+from pydantic import BaseModel, Field
 
+from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
 
 router = APIRouter()
+
+
+class ExpressionRequest(BaseModel):
+    expression: str = Field(..., max_length=500, description="Pine 부분집합 식")
 
 
 @router.get("/indicators")
@@ -19,3 +25,15 @@ async def list_indicators():
     max,step,integer}], outputs[{key,label,role}]
     """
     return {"indicators": registry.public_list()}
+
+
+@router.post("/indicators/validate-expression")
+async def validate_expression(body: ExpressionRequest):
+    """커스텀 식 검증
+
+    파싱 + 화이트리스트 검사 + 더미 데이터로 실제 평가까지 해봅니다.
+    조건으로 쓰려면 kind 가 "boolean" 이어야 합니다.
+
+    응답: {ok: true, kind: "boolean"|"numeric", warmup} 또는 {ok: false, error}
+    """
+    return expression_engine.validate(body.expression)

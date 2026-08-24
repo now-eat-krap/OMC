@@ -11,6 +11,7 @@ from vectorbt.portfolio import nb as portfolio_nb
 
 from app.core.config import get_coin_precision
 from app.schemas import BacktestRequest, BacktestResult, SentenceCondition
+from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
 from app.services.backtest.analyzer import ResultAnalyzer
 from app.services.backtest.strategy import (
@@ -224,8 +225,10 @@ class BacktestEngine:
                 elif t == "band_touch":
                     spec = registry.get_band_spec(c.bandType)
                     need(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+                elif t == "expression" and c.expression:
+                    max_period = max(max_period, expression_engine.estimate_warmup(c.expression))
             except ValueError:
-                continue  # 모르는 지표는 시그널 단계에서 에러가 난다
+                continue  # 모르는 지표·틀린 식은 시그널 단계에서 에러가 난다
             if c.volumePeriod:
                 max_period = max(max_period, c.volumePeriod)
 
