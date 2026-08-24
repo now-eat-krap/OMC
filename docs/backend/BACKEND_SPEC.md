@@ -56,6 +56,7 @@ backend/
 │   │   ├── cache.py         # Redis 캐시
 │   │   ├── indicators.py    # 기술 지표 계산 함수 (Numba 최적화)
 │   │   ├── indicator_registry.py  # 지표 정의 한 곳 (파라미터·출력·표시 방식·템플릿)
+│   │   ├── expression.py    # 커스텀 식 (Pine 부분집합) 파서·평가기
 │   │   └── scheduler.py     # 캐시 초기화/갱신 함수
 │   ├── schemas/             # Pydantic 모델
 │   └── core/                # 설정
@@ -209,6 +210,15 @@ sequenceDiagram
 
 **새 지표를 추가하려면** `indicators.py`에 계산 함수 하나, 레지스트리에 항목 하나입니다.
 파라미터가 몇 개든 UI·AI·차트가 따라옵니다.
+
+### 커스텀 식 (`services/expression.py`)
+
+레지스트리에 없는 지표는 사용자가 **Pine 문법 부분집합의 식**으로 만들 수 있습니다
+(`templateType: "expression"`). 파이썬 `ast`로 파싱해 화이트리스트(위 `ta.*`/`math.*`,
+OHLCV 시리즈, 산술·비교·논리, `[n]` 과거 참조) 밖의 노드는 전부 거부하고, pandas
+연산으로 직접 평가합니다. **코드 실행이 아니라 식 평가**라 `import`·루프·이름 접근이
+불가능합니다. 길이 500자·노드 200개·기간 1000 제한. 검증은
+`POST /api/indicators/validate-expression`.
 
 요청의 지표 파라미터는 `SentenceCondition.params`(교차 상대는 `targetParams`)로 받고, 옛
 필드 `indicatorPeriod`/`targetPeriod`는 `params`가 없을 때 첫 파라미터로 해석합니다.

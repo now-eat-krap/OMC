@@ -205,6 +205,40 @@
 
 ---
 
+### POST `/api/indicators/validate-expression`
+
+커스텀 식 검증. 파싱 + 화이트리스트 검사 + 더미 데이터로 실제 평가까지 합니다.
+
+```json
+{ "expression": "ta.rsi(close, 14) < 30 and close > ta.sma(close, 50)" }
+```
+
+```json
+{ "ok": true, "kind": "boolean", "warmup": 50 }
+{ "ok": false, "error": "ta.sma 인자 수가 틀렸습니다 (2~2개)" }
+```
+
+조건으로 쓰려면 `kind`가 `boolean`이어야 합니다(비교·논리로 끝나는 식). `numeric`은
+지표 값 식입니다. `warmup`은 식이 안정되는 데 필요한 앞 구간 봉 수입니다.
+
+식은 **Pine 문법의 부분집합**입니다. 코드로 실행되지 않고 허용된 요소만 평가됩니다.
+
+- 시리즈: `open` `high` `low` `close` `volume` `hl2` `hlc3` `ohlc4`
+- `ta.*`: `sma` `ema` `wma` `rsi` `atr` `stdev` `highest` `lowest` `change` `crossover` `crossunder` `vwap` (시그니처는 Pine과 동일, 기간은 정수 리터럴)
+- `math.*`: `abs` `max` `min` `log` `sqrt`
+- 산술 `+ - * / % **`, 비교, `and` `or` `not`, 괄호, `[n]` 과거 참조 (`close[1]`)
+- 안 되는 것: `var` 상태 변수, 루프, `?:` 삼항, `request.security`, `plot`
+
+조건에서는 `templateType: "expression"`으로 씁니다.
+
+```json
+{ "templateType": "expression", "expression": "ta.crossover(ta.wma(close,10), ta.sma(close,30))" }
+```
+
+다른 조건과 AND/OR로 섞을 수 있고, 매수·매도 어느 쪽에도 됩니다.
+
+---
+
 ## Assets API
 
 코인 목록 및 OHLCV 데이터 조회
