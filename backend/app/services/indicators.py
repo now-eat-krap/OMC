@@ -303,6 +303,76 @@ def envelope(
     return middle * (1.0 + ratio), middle, middle * (1.0 - ratio)
 
 
+def wma(close: pd.Series, period: int = 20) -> pd.Series:
+    """WMA (가중이동평균) - TradingView ta.wma 와 동일
+
+    최근 봉일수록 큰 가중치(1..period)를 준다.
+    """
+    arr = close.to_numpy(dtype=np.float64)
+    n = len(arr)
+    out = np.full(n, np.nan)
+    if n >= period:
+        weights = np.arange(1, period + 1, dtype=np.float64)
+        wsum = weights.sum()
+        # 컨볼루션 한 번으로 전 구간 계산 (rolling.apply 는 파이썬 루프라 느리다)
+        out[period - 1 :] = np.convolve(arr, weights[::-1], mode="valid") / wsum
+    return pd.Series(out, index=close.index)
+
+
+def vwap(
+    high: pd.Series, low: pd.Series, close: pd.Series, volume: pd.Series, period: int = 20
+) -> pd.Series:
+    """롤링 VWAP - 최근 period 봉의 거래량 가중 평균가
+
+    전통적 VWAP 은 세션 기준(당일 시작 리셋)이지만 암호화폐는 24시간 거래라
+    세션이 없다. TradingView 의 Rolling VWAP 처럼 최근 N 봉 기준으로 계산한다.
+    가격은 typical price (고+저+종)/3.
+    """
+    tp = (high + low + close) / 3.0
+    pv = (tp * volume).rolling(window=period).sum()
+    v = volume.rolling(window=period).sum()
+    return pv / v.replace(0, np.nan)
+
+
+def stdev(close: pd.Series, period: int = 20) -> pd.Series:
+    """롤링 표준편차 - TradingView ta.stdev 와 동일 (모집단, ddof=0)
+
+    주의: bollinger_bands 는 표본 표준편차(ddof=1)를 쓴다. 기존 결과를 바꾸지
+    않기 위해 그대로 두고, 이 함수는 TV 정의를 따른다.
+    """
+    return close.rolling(window=period).std(ddof=0)
+
+
+def highest(series: pd.Series, period: int = 20) -> pd.Series:
+    """최근 period 봉의 최고값 (TradingView ta.highest)"""
+    return series.rolling(window=period).max()
+
+
+def lowest(series: pd.Series, period: int = 20) -> pd.Series:
+    """최근 period 봉의 최저값 (TradingView ta.lowest)"""
+    return series.rolling(window=period).min()
+
+
+def change(series: pd.Series, length: int = 1) -> pd.Series:
+    """length 봉 전 대비 변화량 (TradingView ta.change)"""
+    return series - series.shift(length)
+
+
+def crossover(a: pd.Series, b: pd.Series) -> pd.Series:
+    """a 가 b 를 상향 돌파한 봉 (TradingView ta.crossover)
+
+    전 봉에서는 a <= b, 이번 봉에서 a > b.
+    """
+    prev_a, prev_b = a.shift(1), b.shift(1)
+    return ((a > b) & (prev_a <= prev_b)).fillna(False)
+
+
+def crossunder(a: pd.Series, b: pd.Series) -> pd.Series:
+    """a 가 b 를 하향 돌파한 봉 (TradingView ta.crossunder)"""
+    prev_a, prev_b = a.shift(1), b.shift(1)
+    return ((a < b) & (prev_a >= prev_b)).fillna(False)
+
+
 SUPPORTED_BAND_TYPES = ("bollinger", "keltner", "envelope")
 
 

@@ -109,7 +109,7 @@ class TestUnknownIndicator:
         cond = SentenceCondition(
             id="c",
             templateType="indicator_vs_value",
-            indicator="WMA",
+            indicator="FOOBAR",
             indicatorPeriod=20,
             comparison="gt",
             value=50,

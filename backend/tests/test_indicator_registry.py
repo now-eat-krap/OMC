@@ -43,7 +43,7 @@ class TestSpecs:
 
     def test_unknown_name_raises(self):
         with pytest.raises(ValueError, match="지원하지 않는 지표"):
-            registry.get_spec("WMA")
+            registry.get_spec("FOOBAR")
 
     def test_alias_ma_is_sma(self):
         assert registry.get_spec("MA").name == "SMA"

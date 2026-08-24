@@ -192,6 +192,20 @@ def _stoch(df: pd.DataFrame, p: dict[str, float]) -> dict[str, pd.Series]:
     return {"k": k, "d": d}
 
 
+def _atr(df: pd.DataFrame, p: dict[str, float]) -> dict[str, pd.Series]:
+    return {"value": indicators.atr(df["high"], df["low"], df["close"], int(p["period"]))}
+
+
+def _wma(df: pd.DataFrame, p: dict[str, float]) -> dict[str, pd.Series]:
+    return {"value": indicators.wma(df["close"], int(p["period"]))}
+
+
+def _vwap(df: pd.DataFrame, p: dict[str, float]) -> dict[str, pd.Series]:
+    return {
+        "value": indicators.vwap(df["high"], df["low"], df["close"], df["volume"], int(p["period"]))
+    }
+
+
 _BAND_OUTPUTS = (
     OutputSpec("middle", "중간", "band_middle"),
     OutputSpec("upper", "상단", "band_upper"),
@@ -301,6 +315,41 @@ _SPECS: tuple[IndicatorSpec, ...] = (
         compute=_envelope,
         band_type="envelope",
         legacy_type="bb",
+    ),
+    IndicatorSpec(
+        name="WMA",
+        label="가중이동평균",
+        description="최근 봉에 큰 가중치를 주는 이동평균",
+        params=(ParamSpec("period", "기간", 20, 1, 500),),
+        outputs=(OutputSpec("value", "WMA"),),
+        display="overlay",
+        templates=frozenset({T_VALUE, T_CROSS, T_PRICE_CROSS}),
+        compute=_wma,
+        legacy_type="sma",  # 옛 프론트 폴백: 오버레이 한 줄 선
+    ),
+    IndicatorSpec(
+        name="VWAP",
+        label="거래량가중평균가",
+        description="최근 N 봉의 거래량 가중 평균가 (롤링)",
+        params=(ParamSpec("period", "기간", 20, 1, 500),),
+        outputs=(OutputSpec("value", "VWAP"),),
+        display="overlay",
+        templates=frozenset({T_VALUE, T_CROSS, T_PRICE_CROSS}),
+        compute=_vwap,
+        inputs=frozenset({"high", "low", "close", "volume"}),
+        legacy_type="sma",
+    ),
+    IndicatorSpec(
+        name="ATR",
+        label="ATR (평균 실제 범위)",
+        description="변동성. 최근 N 봉 True Range 의 RMA",
+        params=(ParamSpec("period", "기간", 14, 1, 200),),
+        outputs=(OutputSpec("value", "ATR"),),
+        display="pane",
+        templates=frozenset({T_VALUE}),
+        compute=_atr,
+        inputs=frozenset({"high", "low", "close"}),
+        legacy_type="rsi",  # 옛 프론트 폴백: 패널 한 줄 선
     ),
     IndicatorSpec(
         name="STOCH",
