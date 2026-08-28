@@ -225,6 +225,10 @@ OHLCV 시리즈, 산술·비교·논리, `[n]` 과거 참조) 밖의 노드는 �
 `type: "expression"` 지표 데이터로 결과에 실어, 프론트가 RSI 선·보조선(비교 상수)을
 구조화 조건과 똑같이 그립니다. 가격 스케일 부분식은 overlay, 나머지는 pane.
 
+AI 변환(`ai_strategy`)도 구조화 템플릿으로 표현할 수 없는 전략을 `expression`으로
+만듭니다. 프롬프트에 식 문법을 안내하고, 응답의 식을 `validate()`로 전부 검증한 뒤
+틀린 식은 오류 문구와 함께 한 번 다시 시킵니다. 재시도까지 실패하면 400.
+
 요청의 지표 파라미터는 `SentenceCondition.params`(교차 상대는 `targetParams`)로 받고, 옛
 필드 `indicatorPeriod`/`targetPeriod`는 `params`가 없을 때 첫 파라미터로 해석합니다.
 

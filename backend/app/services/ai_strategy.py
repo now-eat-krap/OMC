@@ -8,6 +8,7 @@ from typing import Any
 from openai import AsyncOpenAI
 
 from app.config import OPENAI_API_KEY
+from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
 
 INDICATOR_NAMES = list(registry.REGISTRY)
@@ -51,12 +52,22 @@ PROMPT_TEMPLATE = """당신은 암호화폐 트레이딩 전략을 JSON 조건�
    - 필수: crossDirection
    - 자동으로 %K와 %D의 교차를 감지
 
+8. expression: 커스텀 식 (위 1~7로 표현할 수 없을 때만)
+   - 필수: expression (Pine 문법 부분집합의 조건식)
+   - 시리즈: open, high, low, close, volume, hl2, hlc3, ohlc4
+   - 함수: ta.sma/ema/wma/rsi/stdev/highest/lowest/change/crossover/crossunder,
+     ta.atr(길이), ta.vwap(길이) — 가격은 자동 / math.abs/max/min/log/sqrt
+   - 산술 + - * / % **, 비교 > < >= <= == !=, and/or/not, 괄호, [n] 과거 참조 (close[1] = 1봉 전)
+   - 규칙: 반드시 참/거짓으로 끝나는 식 (비교·논리 포함), 기간 인자는 정수 리터럴,
+     비교는 한 번에 하나 (a < b and b < c 로 풀어 쓸 것), 지원 밖 함수(supertrend 등) 금지
+
 ## 응답 규칙
 1. 각 조건에는 고유한 id를 생성 (예: "cond_1", "cond_2")
 2. 여러 조건이 있으면 nextOperator로 연결 ('AND' 또는 'OR', 기본: 'AND')
 3. 마지막 조건의 nextOperator는 생략하거나 'AND'
 4. 매수/매도 조건이 명시되지 않으면 해당 배열을 비워둘 것
 5. 지표 기간이 명시되지 않으면 기본값 사용
+6. 1~7 템플릿으로 표현되는 전략은 반드시 그 템플릿으로. expression은 마지막 수단
 
 ## 예시
 사용자: "RSI가 30 아래면 매수하고, 70 이상이면 매도해줘"
@@ -79,6 +90,15 @@ PROMPT_TEMPLATE = """당신은 암호화폐 트레이딩 전략을 JSON 조건�
   "sellConditions": [
     {{"id": "cond_2", "templateType": "indicator_cross", "indicator": "EMA", "indicatorPeriod": 5, "targetIndicator": "EMA", "targetPeriod": 20, "crossDirection": "below"}}
   ]
+}}
+
+사용자: "종가가 20일 VWAP보다 높으면서 전일보다 오른 날 매수" (1~7로 표현 불가 → expression)
+응답:
+{{
+  "buyConditions": [
+    {{"id": "cond_1", "templateType": "expression", "expression": "close > ta.vwap(20) and close > close[1]"}}
+  ],
+  "sellConditions": []
 }}"""
 
 
@@ -91,7 +111,9 @@ class AIStrategyService:
     """
 
     def __init__(self):
-        self.client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        # 키가 없으면 클라이언트 생성 자체가 실패한다. import(싱글톤 생성)는 살려두고
+        # 실제 호출(parse_strategy)에서 키 없음 에러를 낸다
+        self.client = AsyncOpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
         self.model = "gpt-4o-mini"
 
         # 캐시 (메모리 기반 - 간단한 구현)
@@ -115,7 +137,73 @@ class AIStrategyService:
         return PROMPT_TEMPLATE.format(indicator_lines=indicator_lines, band_types=band_types)
 
     def _get_tool_schema(self) -> list[dict[str, Any]]:
-        """Function Calling 도구 스키마 반환"""
+        """Function Calling 도구 스키마 반환 (조건 정의는 매수·매도 공용)"""
+        condition_item = {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "templateType": {
+                    "type": "string",
+                    "enum": [
+                        "indicator_vs_value",
+                        "indicator_cross",
+                        "price_cross",
+                        "profit_loss",
+                        "band_touch",
+                        "macd_signal",
+                        "stochastic",
+                        "expression",
+                    ],
+                },
+                "indicator": {
+                    "type": "string",
+                    "enum": INDICATOR_NAMES,
+                },
+                "indicatorPeriod": {"type": "integer"},
+                "params": {
+                    "type": "object",
+                    "description": "지표 파라미터 (예: MACD {fast,slow,signal}, BB {period,std})",
+                    "additionalProperties": {"type": "number"},
+                },
+                "targetIndicator": {
+                    "type": "string",
+                    "enum": INDICATOR_NAMES,
+                },
+                "targetPeriod": {"type": "integer"},
+                "comparison": {
+                    "type": "string",
+                    "enum": ["gt", "lt", "gte", "lte"],
+                },
+                "crossDirection": {
+                    "type": "string",
+                    "enum": ["above", "below"],
+                },
+                "value": {"type": "number"},
+                "priceType": {
+                    "type": "string",
+                    "enum": ["close", "high", "low", "open"],
+                },
+                "profitDirection": {
+                    "type": "string",
+                    "enum": ["profit", "loss"],
+                },
+                "bandType": {"type": "string", "enum": BAND_TYPES},
+                "bandPosition": {
+                    "type": "string",
+                    "enum": ["upper", "middle", "lower"],
+                },
+                "touchType": {
+                    "type": "string",
+                    "enum": ["touch", "cross", "exit"],
+                },
+                "expression": {
+                    "type": "string",
+                    "description": "templateType=expression 일 때: 참/거짓으로 끝나는 커스텀 식 (예: ta.rsi(close, 14) < 30)",
+                },
+                "nextOperator": {"type": "string", "enum": ["AND", "OR"]},
+            },
+            "required": ["id", "templateType"],
+        }
         return [
             {
                 "type": "function",
@@ -128,132 +216,12 @@ class AIStrategyService:
                             "buyConditions": {
                                 "type": "array",
                                 "description": "매수 조건 목록",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {"type": "string"},
-                                        "templateType": {
-                                            "type": "string",
-                                            "enum": [
-                                                "indicator_vs_value",
-                                                "indicator_cross",
-                                                "price_cross",
-                                                "profit_loss",
-                                                "band_touch",
-                                                "macd_signal",
-                                                "stochastic",
-                                            ],
-                                        },
-                                        "indicator": {
-                                            "type": "string",
-                                            "enum": INDICATOR_NAMES,
-                                        },
-                                        "indicatorPeriod": {"type": "integer"},
-                                        "params": {
-                                            "type": "object",
-                                            "description": "지표 파라미터 (예: MACD {fast,slow,signal}, BB {period,std})",
-                                            "additionalProperties": {"type": "number"},
-                                        },
-                                        "targetIndicator": {
-                                            "type": "string",
-                                            "enum": INDICATOR_NAMES,
-                                        },
-                                        "targetPeriod": {"type": "integer"},
-                                        "comparison": {
-                                            "type": "string",
-                                            "enum": ["gt", "lt", "gte", "lte"],
-                                        },
-                                        "crossDirection": {
-                                            "type": "string",
-                                            "enum": ["above", "below"],
-                                        },
-                                        "value": {"type": "number"},
-                                        "priceType": {
-                                            "type": "string",
-                                            "enum": ["close", "high", "low", "open"],
-                                        },
-                                        "profitDirection": {
-                                            "type": "string",
-                                            "enum": ["profit", "loss"],
-                                        },
-                                        "bandType": {"type": "string", "enum": BAND_TYPES},
-                                        "bandPosition": {
-                                            "type": "string",
-                                            "enum": ["upper", "middle", "lower"],
-                                        },
-                                        "touchType": {
-                                            "type": "string",
-                                            "enum": ["touch", "cross", "exit"],
-                                        },
-                                        "nextOperator": {"type": "string", "enum": ["AND", "OR"]},
-                                    },
-                                    "required": ["id", "templateType"],
-                                },
+                                "items": condition_item,
                             },
                             "sellConditions": {
                                 "type": "array",
                                 "description": "매도 조건 목록",
-                                "items": {
-                                    "type": "object",
-                                    "properties": {
-                                        "id": {"type": "string"},
-                                        "templateType": {
-                                            "type": "string",
-                                            "enum": [
-                                                "indicator_vs_value",
-                                                "indicator_cross",
-                                                "price_cross",
-                                                "profit_loss",
-                                                "band_touch",
-                                                "macd_signal",
-                                                "stochastic",
-                                            ],
-                                        },
-                                        "indicator": {
-                                            "type": "string",
-                                            "enum": INDICATOR_NAMES,
-                                        },
-                                        "indicatorPeriod": {"type": "integer"},
-                                        "params": {
-                                            "type": "object",
-                                            "description": "지표 파라미터 (예: MACD {fast,slow,signal}, BB {period,std})",
-                                            "additionalProperties": {"type": "number"},
-                                        },
-                                        "targetIndicator": {
-                                            "type": "string",
-                                            "enum": INDICATOR_NAMES,
-                                        },
-                                        "targetPeriod": {"type": "integer"},
-                                        "comparison": {
-                                            "type": "string",
-                                            "enum": ["gt", "lt", "gte", "lte"],
-                                        },
-                                        "crossDirection": {
-                                            "type": "string",
-                                            "enum": ["above", "below"],
-                                        },
-                                        "value": {"type": "number"},
-                                        "priceType": {
-                                            "type": "string",
-                                            "enum": ["close", "high", "low", "open"],
-                                        },
-                                        "profitDirection": {
-                                            "type": "string",
-                                            "enum": ["profit", "loss"],
-                                        },
-                                        "bandType": {"type": "string", "enum": BAND_TYPES},
-                                        "bandPosition": {
-                                            "type": "string",
-                                            "enum": ["upper", "middle", "lower"],
-                                        },
-                                        "touchType": {
-                                            "type": "string",
-                                            "enum": ["touch", "cross", "exit"],
-                                        },
-                                        "nextOperator": {"type": "string", "enum": ["AND", "OR"]},
-                                    },
-                                    "required": ["id", "templateType"],
-                                },
+                                "items": condition_item,
                             },
                         },
                         "required": ["buyConditions", "sellConditions"],
@@ -262,9 +230,47 @@ class AIStrategyService:
             }
         ]
 
+    async def _request_conditions(self, messages: list[dict[str, str]]) -> dict[str, Any]:
+        """모델을 한 번 호출해 조건 dict 를 받는다"""
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=messages,
+            tools=self._get_tool_schema(),
+            tool_choice={
+                "type": "function",
+                "function": {"name": "create_backtest_conditions"},
+            },
+        )
+        tool_call = response.choices[0].message.tool_calls[0]
+        result = json.loads(tool_call.function.arguments)
+        if not isinstance(result.get("buyConditions"), list):
+            result["buyConditions"] = []
+        if not isinstance(result.get("sellConditions"), list):
+            result["sellConditions"] = []
+        return result
+
+    @staticmethod
+    def _expression_errors(result: dict[str, Any]) -> list[str]:
+        """expression 조건의 식을 전부 검증한다. 문제가 없으면 빈 목록"""
+        errors = []
+        for side in ("buyConditions", "sellConditions"):
+            for cond in result.get(side, []):
+                if not isinstance(cond, dict) or cond.get("templateType") != "expression":
+                    continue
+                expr = cond.get("expression") or ""
+                verdict = expression_engine.validate(expr)
+                if not verdict["ok"]:
+                    errors.append(f"{expr!r}: {verdict['error']}")
+                elif verdict["kind"] != "boolean":
+                    errors.append(f"{expr!r}: 조건 식은 참/거짓으로 끝나야 합니다 (지금은 숫자)")
+        return errors
+
     async def parse_strategy(self, user_prompt: str) -> dict[str, Any]:
         """
         자연어 전략을 SentenceCondition 형태로 변환
+
+        expression 조건이 있으면 식 엔진으로 검증하고, 틀렸으면 오류를 알려주며
+        한 번 다시 시킨다. 그래도 틀리면 실패로 처리한다.
 
         Args:
             user_prompt: 사용자의 자연어 전략 설명
@@ -280,35 +286,38 @@ class AIStrategyService:
                 "OpenAI API 키가 설정되지 않았습니다. 환경변수 OPENAI_API_KEY를 설정해주세요."
             )
 
-        # 캐시 확인
+        # 캐시 확인 (검증까지 통과한 결과만 캐시에 있다)
         cache_key = self._get_cache_key(user_prompt)
         if cache_key in self._cache:
             return self._cache[cache_key]
 
         try:
-            # OpenAI API 호출 (Function Calling)
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": self._get_system_prompt()},
-                    {"role": "user", "content": user_prompt},
-                ],
-                tools=self._get_tool_schema(),
-                tool_choice={
-                    "type": "function",
-                    "function": {"name": "create_backtest_conditions"},
-                },
-            )
+            messages = [
+                {"role": "system", "content": self._get_system_prompt()},
+                {"role": "user", "content": user_prompt},
+            ]
+            result = await self._request_conditions(messages)
 
-            # 응답에서 함수 호출 인자 추출
-            tool_call = response.choices[0].message.tool_calls[0]
-            result = json.loads(tool_call.function.arguments)
+            errors = self._expression_errors(result)
+            if errors:
+                # 식이 틀렸으면 오류를 보여주고 한 번 고치게 한다
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "방금 변환한 결과입니다:\n"
+                            + json.dumps(result, ensure_ascii=False)
+                            + "\n\n다음 식이 검증에 실패했습니다:\n"
+                            + "\n".join(f"- {e}" for e in errors)
+                            + "\n\n오류를 고쳐 전체 조건을 다시 만들어 주세요."
+                        ),
+                    }
+                )
+                result = await self._request_conditions(messages)
+                errors = self._expression_errors(result)
 
-            # 결과 검증
-            if not isinstance(result.get("buyConditions"), list):
-                result["buyConditions"] = []
-            if not isinstance(result.get("sellConditions"), list):
-                result["sellConditions"] = []
+            if errors:
+                raise ValueError(f"AI가 만든 식이 올바르지 않습니다: {errors[0]}")
 
             # 캐시 저장
             self._cache[cache_key] = result
@@ -317,6 +326,8 @@ class AIStrategyService:
 
         except json.JSONDecodeError as e:
             raise ValueError(f"AI 응답 파싱 실패: {str(e)}") from e
+        except ValueError:
+            raise
         except Exception as e:
             raise ValueError(f"AI 전략 변환 실패: {str(e)}") from e
 
