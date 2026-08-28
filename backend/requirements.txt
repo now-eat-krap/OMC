@@ -8,6 +8,7 @@ ccxt>=4.0.0
 pandas>=2.0.0
 numpy>=1.21.0,<1.24.0
 vectorbt>=0.26.0
+plotly<7  # vectorbt 기본 템플릿이 7.0에서 제거된 scattermapbox 를 써서 import 가 깨짐
 python-dotenv>=1.0.0
 redis>=5.0.0  # Redis 캐시용
 numba>=0.56.0,<0.57.0  # JIT 컴파일 최적화 (vectorbt 호환)
