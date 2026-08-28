@@ -140,3 +140,66 @@ class TestValidateAndWarmup:
         assert ex.estimate_warmup("ta.sma(close, 20) > ta.ema(close, 50)") == 50
         # 과거 참조 가산
         assert ex.estimate_warmup("ta.sma(close, 10)[5]") == 15
+
+
+class TestExtractPlotSeries:
+    def test_compare_with_constant_gives_line_and_level(self):
+        df = _df()
+        plots = ex.extract_plot_series(df, "ta.rsi(close, 14) < 30")
+        assert len(plots) == 1
+        p = plots[0]
+        assert p["label"] == "ta.rsi(close, 14)"
+        assert p["display"] == "pane"
+        assert p["levels"] == [30.0]
+        pd.testing.assert_series_equal(p["series"], indicators.rsi(df["close"], 14))
+
+    def test_bare_price_series_skipped(self):
+        df = _df()
+        # close, close[1] 은 캔들이 이미 보여주므로 그리지 않는다
+        assert ex.extract_plot_series(df, "close > close[1]") == []
+        plots = ex.extract_plot_series(df, "close > ta.sma(close, 50)")
+        assert [p["label"] for p in plots] == ["ta.sma(close, 50)"]
+        assert plots[0]["display"] == "overlay"
+
+    def test_crossover_args_both_plotted(self):
+        df = _df()
+        plots = ex.extract_plot_series(df, "ta.crossover(ta.wma(close,10), ta.sma(close,30))")
+        assert [p["label"] for p in plots] == ["ta.wma(close,10)", "ta.sma(close,30)"]
+        assert all(p["display"] == "overlay" for p in plots)
+        assert all(p["levels"] == [] for p in plots)
+
+    def test_price_offset_is_overlay_and_oscillator_is_pane(self):
+        df = _df()
+        plots = ex.extract_plot_series(df, "close > ta.ema(close, 20) + 2 * ta.atr(20)")
+        assert plots[0]["display"] == "overlay"
+        plots = ex.extract_plot_series(df, "ta.change(close) > 0 and ta.atr(14) < 5")
+        assert {p["label"]: p["display"] for p in plots} == {
+            "ta.change(close)": "pane",
+            "ta.atr(14)": "pane",
+        }
+
+    def test_same_subexpression_merges_levels(self):
+        df = _df()
+        plots = ex.extract_plot_series(df, "ta.rsi(close,14) > 20 and ta.rsi(close,14) < 30")
+        assert len(plots) == 1
+        assert plots[0]["levels"] == [20.0, 30.0]
+
+    def test_analyzer_emits_expression_indicator_data(self):
+        from app.services.backtest.analyzer import ResultAnalyzer
+
+        df = _df()
+        df["timestamp"] = df.index.astype("int64") // 10**6
+        conds = [
+            SentenceCondition(
+                id="a", templateType="expression", expression="ta.rsi(close, 14) < 30"
+            ),
+            SentenceCondition(
+                id="b", templateType="expression", expression="식이 아님 !!!"
+            ),  # 틀린 식은 조용히 건너뛴다
+        ]
+        out = ResultAnalyzer().extract_indicators(df, conds)
+        assert len(out) == 1
+        ind = out[0]
+        assert ind.name == "ta.rsi(close, 14)"
+        assert ind.type == "expression" and ind.display == "pane" and ind.levels == [30.0]
+        assert len(ind.data) == len(df) - 14

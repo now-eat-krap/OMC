@@ -323,3 +323,119 @@ def validate(expression: str) -> dict:
 def estimate_warmup(expression: str) -> int:
     """엔진의 warmup 계산용. 파싱만 하고 평가는 하지 않는다"""
     return _estimate_warmup(_parse(expression))
+
+
+# ---------------------------------------------------------------------------
+# 차트 미리보기: 식에서 그릴 만한 숫자 부분식 뽑기
+# ---------------------------------------------------------------------------
+
+_PRICE_NAMES = {"open", "high", "low", "close", "hl2", "hlc3", "ohlc4"}
+_PRICE_FUNCS = {"sma", "ema", "wma", "highest", "lowest"}  # 첫 인자가 가격이면 가격 스케일
+
+
+def _is_price_scaled(node: ast.expr) -> bool:
+    """이 부분식이 가격과 같은 스케일인가 (오버레이로 그릴 수 있는가)"""
+    if isinstance(node, ast.Name):
+        return node.id in _PRICE_NAMES
+    if isinstance(node, ast.Subscript):
+        return _is_price_scaled(node.value)
+    if isinstance(node, ast.UnaryOp):
+        return _is_price_scaled(node.operand)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+        # 가격 ± 오프셋 (예: ta.ema(close,20) + 2*ta.atr(20)) 은 가격 스케일
+        return _is_price_scaled(node.left) or _is_price_scaled(node.right)
+    if isinstance(node, ast.Call):
+        name = _fn_name(node.func)
+        if name is None:
+            return False
+        ns, fn = name
+        if ns == "ta" and fn == "vwap":
+            return True
+        if ns == "ta" and fn in _PRICE_FUNCS and node.args:
+            return _is_price_scaled(node.args[0])
+        if ns == "math" and fn in ("max", "min"):
+            return any(_is_price_scaled(a) for a in node.args)
+    return False
+
+
+def _is_bare_series(node: ast.expr) -> bool:
+    """close, close[1] 같은 원시 시리즈 (캔들이 이미 보여주므로 안 그린다)"""
+    if isinstance(node, ast.Name):
+        return True
+    if isinstance(node, ast.Subscript):
+        return _is_bare_series(node.value)
+    return False
+
+
+def _collect_plot_nodes(node: ast.expr, out: list[tuple[ast.expr, float | None]]) -> None:
+    """불리언 구조를 따라 내려가며 비교의 피연산자(숫자 식)를 모은다
+
+    상수와 비교했다면 그 상수를 수평 보조선 값으로 같이 담는다.
+    """
+    if isinstance(node, ast.BoolOp):
+        for v in node.values:
+            _collect_plot_nodes(v, out)
+        return
+    if isinstance(node, ast.UnaryOp) and isinstance(node.op, ast.Not):
+        _collect_plot_nodes(node.operand, out)
+        return
+    if isinstance(node, ast.Compare) and len(node.ops) == 1:
+        left, right = node.left, node.comparators[0]
+        left_const = isinstance(left, ast.Constant)
+        right_const = isinstance(right, ast.Constant)
+        if left_const and right_const:
+            return
+        if right_const:
+            out.append((left, float(right.value)))  # type: ignore[union-attr]
+        elif left_const:
+            out.append((right, float(left.value)))  # type: ignore[union-attr]
+        else:
+            out.append((left, None))
+            out.append((right, None))
+        return
+    if isinstance(node, ast.Call):
+        name = _fn_name(node.func)
+        if name is not None and name[0] == "ta" and name[1] in ("crossover", "crossunder"):
+            for a in node.args:
+                if not isinstance(a, ast.Constant):
+                    out.append((a, None))
+            return
+    # 그 밖(식 전체가 숫자인 경우 등)은 노드 자체를 그린다
+    out.append((node, None))
+
+
+def extract_plot_series(df: pd.DataFrame, expression: str) -> list[dict]:
+    """차트에 그릴 숫자 부분식들을 평가해 돌려준다
+
+    ta.rsi(close,14) < 30 이면 RSI 선 하나와 보조선 30. close 같은 원시
+    시리즈는 캔들이 이미 보여주므로 건너뛴다. 틀린 식이면 ExpressionError.
+
+    Returns:
+        [{label, series, display: "overlay"|"pane", levels: [float]}]
+    """
+    source = expression.strip()
+    tree = _parse(expression)
+    pairs: list[tuple[ast.expr, float | None]] = []
+    _collect_plot_nodes(tree, pairs)
+
+    evaluator = _Evaluator(df)
+    by_label: dict[str, dict] = {}
+    for sub, level in pairs:
+        if _is_bare_series(sub):
+            continue
+        result = evaluator.eval(sub)
+        if not isinstance(result, pd.Series) or result.dtype == bool:
+            continue
+        label = ast.get_source_segment(source, sub) or "식"
+        entry = by_label.get(label)
+        if entry is None:
+            entry = {
+                "label": label,
+                "series": result.astype(float),
+                "display": "overlay" if _is_price_scaled(sub) else "pane",
+                "levels": set(),
+            }
+            by_label[label] = entry
+        if level is not None:
+            entry["levels"].add(level)
+    return [{**e, "levels": sorted(e["levels"])} for e in by_label.values()]

@@ -230,6 +230,7 @@ export type SentenceTemplateType =
   | 'candle_pattern' // 망치형 캔들 출현
   | 'volume' // 거래량이 평균의 2배 이상
   | 'price_change' // 전일 대비 5% 이상 상승
+  | 'expression' // 커스텀 식: ta.rsi(close, 14) < 30
 
 // 문장 조건 인터페이스
 export interface SentenceCondition {
@@ -270,6 +271,8 @@ export interface SentenceCondition {
   // 가격 변동용
   priceChangePercent?: number
   priceChangeDirection?: 'up' | 'down'
+  // 커스텀 식용 (Pine 문법 부분집합. 백엔드가 파싱·평가한다)
+  expression?: string
   // 다음 조건과의 논리 연산자
   nextOperator?: 'AND' | 'OR'
 }
