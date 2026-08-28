@@ -72,6 +72,8 @@ function conditionToText(condition: SentenceCondition): string {
       const direction = condition.crossDirection === 'above' ? '상향' : '하향'
       return `스토캐스틱 %K/%D ${direction}돌파`
     }
+    case 'expression':
+      return condition.expression || '커스텀 식'
     default:
       return templateType
   }

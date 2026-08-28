@@ -382,6 +382,35 @@ export async function fetchIndicators(): Promise<IndicatorSpec[]> {
   return data.indicators
 }
 
+/** 커스텀 식 검증 응답 (POST /api/indicators/validate-expression) */
+export interface ExpressionValidation {
+  ok: boolean
+  /** ok 일 때: 식의 종류. 조건으로 쓰려면 boolean 이어야 한다 */
+  kind?: 'boolean' | 'numeric'
+  /** ok 일 때: 식이 안정되는 데 필요한 앞 구간 봉 수 */
+  warmup?: number
+  /** ok 가 아닐 때: 사용자에게 보여줄 오류 문구 */
+  error?: string
+}
+
+/**
+ * 커스텀 식 검증
+ * 백엔드가 파싱·평가까지 해보고 결과를 알려준다. 입력란의 실시간 검증용
+ */
+export async function validateExpression(expression: string): Promise<ExpressionValidation> {
+  const response = await fetch(`${API_BASE_URL}/indicators/validate-expression`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ expression }),
+  })
+  if (!response.ok) {
+    throw new Error(`식 검증 실패: ${response.statusText}`)
+  }
+  return response.json()
+}
+
 /**
  * 서버 헬스 체크
  */

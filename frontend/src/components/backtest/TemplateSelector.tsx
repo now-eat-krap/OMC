@@ -14,6 +14,7 @@ import {
   Percent,
   ArrowUpCircle,
   ArrowDownCircle,
+  Sigma,
 } from 'lucide-react'
 import type { SentenceCondition, SentenceTemplateType } from './types'
 import { generateConditionId } from './types'
@@ -151,6 +152,16 @@ const TEMPLATES: TemplateDefinition[] = [
       templateType: 'price_change',
       priceChangePercent: 5,
       priceChangeDirection: 'up',
+    },
+  },
+  {
+    type: 'expression',
+    label: '커스텀 식',
+    description: 'ta.rsi(close, 14) < 30 처럼 직접 작성',
+    icon: <Sigma className="w-5 h-5 text-accent" />,
+    defaultCondition: {
+      templateType: 'expression',
+      expression: 'ta.rsi(close, 14) < 30',
     },
   },
 ]

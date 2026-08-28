@@ -2,7 +2,7 @@
 // 드롭다운 슬롯을 문장 구조에 배치하여 자연어처럼 조건 설정
 
 import { Fragment } from 'react'
-import { X, ChevronDown, Check } from 'lucide-react'
+import { X, ChevronDown, Check, Loader2, AlertCircle } from 'lucide-react'
 import * as Select from '@radix-ui/react-select'
 import type {
   SentenceCondition as SentenceConditionType,
@@ -10,6 +10,7 @@ import type {
   IndicatorSpec,
 } from './types'
 import { findBandSpec, findSpec, resolveParams, useIndicators } from '../../hooks/useIndicators'
+import { useExpressionValidation } from '../../hooks/useExpressionValidation'
 import {
   COMPARISON_LABELS,
   PRICE_TYPE_LABELS,
@@ -153,6 +154,58 @@ function ParamSlots({
       ))}
       <span className="text-muted">)</span>
     </>
+  )
+}
+
+// 커스텀 식 입력 슬롯: 모노스페이스 입력란 + 서버 검증 결과 한 줄
+function ExpressionSlot({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const status = useExpressionValidation(value)
+  return (
+    <div className="flex flex-col gap-1 flex-1 min-w-[240px]">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="ta.rsi(close, 14) < 30"
+        spellCheck={false}
+        autoComplete="off"
+        className="w-full px-2 py-1 bg-raise border border-line rounded-card
+                   text-ink font-mono text-xs
+                   hover:border-line
+                   focus:outline-none focus:ring-1 focus:ring-white/30
+                   transition-all duration-150 placeholder:text-dim"
+      />
+      {status.state === 'checking' && (
+        <span className="flex items-center gap-1 text-[10px] text-dim">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          검증 중…
+        </span>
+      )}
+      {status.state === 'valid' && status.kind === 'boolean' && (
+        <span className="flex items-center gap-1 text-[10px] text-up">
+          <Check className="w-3 h-3" />
+          조건식 확인됨 · 준비 구간 {status.warmup}봉
+        </span>
+      )}
+      {status.state === 'valid' && status.kind === 'numeric' && (
+        <span className="flex items-center gap-1 text-[10px] text-down">
+          <AlertCircle className="w-3 h-3" />
+          숫자 식입니다 — 조건은 참/거짓으로 끝나야 합니다 (예: &lt; 30 을 붙이세요)
+        </span>
+      )}
+      {status.state === 'invalid' && (
+        <span className="flex items-center gap-1 text-[10px] text-down">
+          <AlertCircle className="w-3 h-3 flex-shrink-0" />
+          {status.error}
+        </span>
+      )}
+      {status.state === 'idle' && (
+        <span className="text-[10px] text-dim">
+          예: ta.rsi(close, 14) &lt; 30 · close &gt; ta.sma(close, 50) ·
+          ta.crossover(ta.ema(close, 5), ta.ema(close, 20))
+        </span>
+      )}
+    </div>
   )
 }
 
@@ -547,6 +600,15 @@ export default function SentenceCondition({
             />
             <span className="text-ink">할 때</span>
           </>
+        )
+
+      // 11. 커스텀 식: "ta.rsi(close, 14) < 30 일 때"
+      case 'expression':
+        return (
+          <ExpressionSlot
+            value={condition.expression ?? ''}
+            onChange={(v) => updateSlot('expression', v)}
+          />
         )
 
       default:

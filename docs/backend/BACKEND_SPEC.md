@@ -220,6 +220,11 @@ OHLCV 시리즈, 산술·비교·논리, `[n]` 과거 참조) 밖의 노드는 �
 불가능합니다. 길이 500자·노드 200개·기간 1000 제한. 검증은
 `POST /api/indicators/validate-expression`.
 
+차트 표시용으로 `extract_plot_series()`가 식에서 숫자 부분식(비교 피연산자,
+`crossover`/`crossunder` 인자)을 뽑아 평가합니다. `ResultAnalyzer`가 이것을
+`type: "expression"` 지표 데이터로 결과에 실어, 프론트가 RSI 선·보조선(비교 상수)을
+구조화 조건과 똑같이 그립니다. 가격 스케일 부분식은 overlay, 나머지는 pane.
+
 요청의 지표 파라미터는 `SentenceCondition.params`(교차 상대는 `targetParams`)로 받고, 옛
 필드 `indicatorPeriod`/`targetPeriod`는 `params`가 없을 때 첫 파라미터로 해석합니다.
 

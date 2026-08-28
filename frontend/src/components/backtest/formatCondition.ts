@@ -63,6 +63,10 @@ export function formatCondition(condition: SentenceCondition): string {
       return `전일 대비 ${condition.priceChangePercent}% ${
         condition.priceChangeDirection === 'up' ? '상승' : '하락'
       }`
+    case 'expression': {
+      const expr = (condition.expression ?? '').trim() || '(빈 식)'
+      return expr.length > 40 ? `${expr.slice(0, 39)}…` : expr
+    }
     default:
       return '조건'
   }

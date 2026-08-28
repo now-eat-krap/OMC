@@ -81,6 +81,7 @@ const INDICATOR_COLORS: Record<string, string> = {
   macd: '#10b981', // 초록색
   bb: '#ec4899', // 분홍색
   stoch: '#3b82f6', // 파란색
+  expression: '#a3e635', // 라임색 (커스텀 식의 부분식)
 }
 
 // 동일 타입 지표 구분용 추가 색상 (두 번째, 세 번째... 지표용)
@@ -539,8 +540,9 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             0
           ) // Pane 0
 
+          // 커스텀 식은 음수도 정상값이라 거르지 않는다 (0 필터는 옛 응답의 warmup 0 제거용)
           const lineData: LineData[] = indicator.data
-            .filter((d) => d.value > 0)
+            .filter((d) => indicator.type === 'expression' || d.value > 0)
             .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
 
           lineSeries.setData(lineData)
@@ -623,8 +625,9 @@ const BacktestChart = forwardRef<BacktestChartHandle, BacktestChartProps>(
             1
           ) // Pane 1
 
+          // 커스텀 식은 음수도 정상값이라 거르지 않는다
           const rsiData: LineData[] = indicator.data
-            .filter((d) => d.value > 0)
+            .filter((d) => indicator.type === 'expression' || d.value > 0)
             .map((d) => ({ time: toChartTime(d.timestamp), value: d.value }))
 
           rsiSeries.setData(rsiData)

@@ -11,6 +11,7 @@ from app.schemas import (
     SentenceCondition,
     TradeRecord,
 )
+from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
 from app.utils import safe_float
 
@@ -187,6 +188,7 @@ class ResultAnalyzer:
         # 1) 조건에서 (스펙, 파라미터) 수집. 같은 것은 한 번만
         uses: dict[tuple, tuple] = {}  # key -> (spec, params)
         levels: dict[tuple, set[float]] = {}  # RSI 70/30 같은 보조선
+        expr_plots: dict[str, dict] = {}  # 커스텀 식에서 뽑은 부분식. label -> plot
 
         def add(spec, params, level: float | None = None):
             key = (spec.name, tuple(sorted(params.items())))
@@ -222,6 +224,14 @@ class ResultAnalyzer:
                 elif t == "band_touch":
                     spec = registry.get_band_spec(c.bandType)
                     add(spec, spec.resolve_params(c.params, c.indicatorPeriod))
+                elif t == "expression" and c.expression:
+                    # 식의 숫자 부분식(RSI 선 등)을 그린다. 같은 부분식은 한 번만
+                    for plot in expression_engine.extract_plot_series(df, c.expression):
+                        prev = expr_plots.get(plot["label"])
+                        if prev is None:
+                            expr_plots[plot["label"]] = plot
+                        else:
+                            prev["levels"] = sorted(set(prev["levels"]) | set(plot["levels"]))
             except ValueError:
                 # 모르는 지표는 strategy 단계에서 이미 에러가 났을 것이다. 차트는 건너뛴다
                 continue
@@ -286,6 +296,19 @@ class ResultAnalyzer:
                     display=spec.display,
                     valueRange=list(spec.value_range) if spec.value_range else None,
                     levels=lv or None,
+                )
+            )
+
+        # 3) 커스텀 식의 부분식들. 스펙이 없으므로 label 이 이름이 된다
+        for label, plot in expr_plots.items():
+            result.append(
+                IndicatorData(
+                    name=label,
+                    type="expression",
+                    period=0,
+                    data=points(plot["series"]),
+                    display=plot["display"],
+                    levels=plot["levels"] or None,
                 )
             )
         return result

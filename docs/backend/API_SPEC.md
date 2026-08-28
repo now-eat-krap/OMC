@@ -237,6 +237,16 @@
 
 다른 조건과 AND/OR로 섞을 수 있고, 매수·매도 어느 쪽에도 됩니다.
 
+백테스트 결과의 `indicators`에는 식의 숫자 부분식들이 `type: "expression"`으로
+실립니다. 비교 피연산자와 `crossover`/`crossunder` 인자를 각각 한 선으로 그리고,
+상수와 비교했다면 그 값이 `levels`(수평 보조선)로 들어갑니다. `display`는 부분식이
+가격 스케일이면(`close` 파생 이동평균, `vwap`, 가격±오프셋) `overlay`, 아니면
+`pane`입니다. `close` 같은 원시 시리즈는 캔들이 이미 보여주므로 싣지 않습니다.
+
+```json
+{ "name": "ta.rsi(close, 14)", "type": "expression", "display": "pane", "levels": [30.0, 70.0] }
+```
+
 ---
 
 ## Assets API
