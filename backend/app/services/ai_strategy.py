@@ -3,13 +3,18 @@
 
 import hashlib
 import json
+import logging
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from app.config import OPENAI_API_KEY
+from app.core.exceptions import AIServiceError
 from app.services import expression as expression_engine
 from app.services import indicator_registry as registry
+from app.services.ai_errors import translate_provider_error
+
+logger = logging.getLogger(__name__)
 
 INDICATOR_NAMES = list(registry.REGISTRY)
 BAND_TYPES = registry.band_types()
@@ -279,12 +284,13 @@ class AIStrategyService:
             dict: {"buyConditions": [...], "sellConditions": [...]}
 
         Raises:
-            ValueError: API 키가 설정되지 않았거나 변환 실패 시
+            ValueError: AI 가 만든 식이 재시도 후에도 검증을 통과하지 못했을 때
+            AIServiceError: 키 미설정, 프로바이더 호출 실패 등 서버·외부 문제일 때
         """
         if not OPENAI_API_KEY:
-            raise ValueError(
-                "OpenAI API 키가 설정되지 않았습니다. 환경변수 OPENAI_API_KEY를 설정해주세요."
-            )
+            # 사용자가 고칠 수 있는 문제가 아니므로 서버 설정 오류로 알린다
+            logger.error("OPENAI_API_KEY 가 비어 있어 AI 전략 변환을 할 수 없습니다")
+            raise AIServiceError("AI 기능이 설정되지 않았습니다. 서버 관리자에게 문의해주세요.", 503)
 
         # 캐시 확인 (검증까지 통과한 결과만 캐시에 있다)
         cache_key = self._get_cache_key(user_prompt)
@@ -325,11 +331,15 @@ class AIStrategyService:
             return result
 
         except json.JSONDecodeError as e:
-            raise ValueError(f"AI 응답 파싱 실패: {str(e)}") from e
-        except ValueError:
+            logger.exception("AI 응답 JSON 파싱 실패")
+            raise AIServiceError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.", 502) from e
+        except (ValueError, AIServiceError):
+            # 우리가 만든 문구라 그대로 내보내도 된다
             raise
         except Exception as e:
-            raise ValueError(f"AI 전략 변환 실패: {str(e)}") from e
+            # 프로바이더 응답 본문은 로그에만 남기고 사용자에게는 우리 문구를 준다
+            logger.exception("AI 전략 변환 실패")
+            raise translate_provider_error(e, "AI 전략 변환") from e
 
     def clear_cache(self):
         """캐시 초기화"""

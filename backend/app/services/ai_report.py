@@ -4,12 +4,17 @@
 
 import hashlib
 import json
+import logging
 from typing import Any
 
 from openai import AsyncOpenAI
 
 from app.config import OPENAI_API_KEY
+from app.core.exceptions import AIServiceError
+from app.services.ai_errors import translate_provider_error
 from app.services.score_calculator import calculate_strategy_score
+
+logger = logging.getLogger(__name__)
 
 
 class AIReportService:
@@ -156,10 +161,11 @@ class AIReportService:
                 - summary: 한줄 요약
 
         Raises:
-            ValueError: API 키가 설정되지 않았거나 생성 실패 시
+            AIServiceError: 키 미설정, 프로바이더 호출 실패 등 서버·외부 문제일 때
         """
         if not self.client:
-            raise ValueError("OpenAI API 키가 설정되지 않았습니다.")
+            logger.error("OPENAI_API_KEY 가 비어 있어 AI 리포트를 만들 수 없습니다")
+            raise AIServiceError("AI 기능이 설정되지 않았습니다. 서버 관리자에게 문의해주세요.", 503)
 
         # 1. 백엔드에서 점수 계산 (객관적)
         score_data = calculate_strategy_score(result_summary)
@@ -239,9 +245,12 @@ class AIReportService:
             return report
 
         except json.JSONDecodeError as e:
-            raise ValueError(f"GPT 응답 파싱 실패: {str(e)}") from e
+            logger.exception("AI 리포트 응답 JSON 파싱 실패")
+            raise AIServiceError("AI 응답을 해석하지 못했습니다. 다시 시도해주세요.", 502) from e
         except Exception as e:
-            raise ValueError(f"AI 리포트 생성 실패: {str(e)}") from e
+            # 프로바이더 응답 본문은 로그에만 남기고 사용자에게는 우리 문구를 준다
+            logger.exception("AI 리포트 생성 실패")
+            raise translate_provider_error(e, "AI 리포트 생성") from e
 
     def clear_cache(self):
         """캐시 초기화"""

@@ -442,7 +442,8 @@ export async function parseAIStrategy(prompt: string): Promise<{
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     if (response.status === 429) {
-      throw new Error('요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.')
+      // 서버가 문구를 주면 그대로 쓴다 (IP 한도인지 AI 사용량 한도인지 구분됨)
+      throw new Error(errorData.detail || '요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.')
     }
     throw new Error(errorData.detail || `AI 전략 변환 실패: ${response.statusText}`)
   }
@@ -518,7 +519,8 @@ export async function generateAIReport(
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}))
     if (response.status === 429) {
-      throw new Error('요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.')
+      // 서버가 문구를 주면 그대로 쓴다 (IP 한도인지 AI 사용량 한도인지 구분됨)
+      throw new Error(errorData.detail || '요청 한도를 초과했습니다. 잠시 후 다시 시도해주세요.')
     }
     throw new Error(errorData.detail || `AI 리포트 생성 실패: ${response.statusText}`)
   }

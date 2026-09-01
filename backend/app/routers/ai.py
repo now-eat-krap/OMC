@@ -1,12 +1,14 @@
 # AI 전략 변환 API 라우터
 # Rate limiting으로 과부하 방지
 
+import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from app.config import AI_RATE_LIMIT_PER_HOUR, AI_RATE_LIMIT_PER_MINUTE
+from app.core.exceptions import AIServiceError
 from app.schemas.ai import (
     GenerateReportRequest,
     ParseStrategyRequest,
@@ -15,6 +17,8 @@ from app.schemas.ai import (
     StructuredReportResponse,
 )
 from app.services.ai_strategy import ai_strategy_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -44,10 +48,17 @@ async def parse_strategy(request: Request, body: ParseStrategyRequest):
     try:
         result = await ai_strategy_service.parse_strategy(body.prompt)
         return ParseStrategyResponse(**result)
+    except AIServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except ValueError as e:
+        # 식 검증 실패처럼 우리가 만든 문구만 여기로 온다
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 전략 변환 실패: {str(e)}") from e
+        # 예상 못 한 오류의 원문은 로그에만 남긴다
+        logger.exception("AI 전략 변환 중 예상하지 못한 오류")
+        raise HTTPException(
+            status_code=500, detail="AI 전략 변환에 실패했습니다. 잠시 후 다시 시도해주세요."
+        ) from e
 
 
 @router.get("/ai/health")
@@ -125,7 +136,13 @@ async def generate_report(request: Request, body: GenerateReportRequest):
             suggestions=report["suggestions"],
             summary=report["summary"],
         )
+    except AIServiceError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message) from e
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"AI 리포트 생성 실패: {str(e)}") from e
+        # 예상 못 한 오류의 원문은 로그에만 남긴다
+        logger.exception("AI 리포트 생성 중 예상하지 못한 오류")
+        raise HTTPException(
+            status_code=500, detail="AI 리포트 생성에 실패했습니다. 잠시 후 다시 시도해주세요."
+        ) from e

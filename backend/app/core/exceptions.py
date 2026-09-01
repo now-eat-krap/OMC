@@ -45,3 +45,17 @@ class StrategyError(BacktestError):
     """
 
     pass
+
+
+class AIServiceError(Exception):
+    """AI 프로바이더 호출이 실패했을 때 쓰는 예외
+
+    message 는 그대로 사용자에게 내려가므로 프로바이더 응답 본문을 담지
+    않습니다. 프로바이더 원문은 서버 로그에만 남깁니다
+    (services/ai_errors.py 주석 참고).
+    """
+
+    def __init__(self, message: str, status_code: int = 502):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code

@@ -3,9 +3,12 @@
 import json
 from types import SimpleNamespace
 
+import openai
 import pytest
 
+from app.core.exceptions import AIServiceError
 from app.services import ai_strategy as ai_mod
+from app.services.ai_errors import translate_provider_error
 from app.services.ai_strategy import AIStrategyService
 
 
@@ -23,6 +26,16 @@ class FakeCompletions:
     async def create(self, *, messages, **kwargs):
         self.calls.append(messages)
         return _response(self.results.pop(0))
+
+
+class RaisingCompletions:
+    """항상 프로바이더 오류를 내는 페이크"""
+
+    def __init__(self, error: Exception):
+        self.error = error
+
+    async def create(self, **kwargs):
+        raise self.error
 
 
 def _service(monkeypatch, results: list[dict]) -> tuple[AIStrategyService, FakeCompletions]:
@@ -113,3 +126,68 @@ class TestParseStrategy:
         result = await service.parse_strategy("RSI 30 밑이면 매수")
         assert result == good
         assert len(fake.calls) == 1
+
+
+def _provider_error(cls: type, message: str) -> Exception:
+    """openai 예외 인스턴스를 만든다
+
+    openai 예외는 생성자가 httpx 응답 객체를 요구하고 그 시그니처가 버전마다
+    달라져서, 타입과 메시지만 필요한 여기서는 __init__ 을 건너뛴다.
+    """
+    error = cls.__new__(cls)
+    Exception.__init__(error, message)
+    return error
+
+
+# 실제로 받았던 401 응답 본문. 사용된 키가 마스킹된 채로 들어 있다
+AUTH_ERROR_TEXT = (
+    "Error code: 401 - {'error': {'message': 'Incorrect API key provided: "
+    "your_ope************here. You can find your API key at "
+    "https://platform.openai.com/account/api-keys.'}}"
+)
+
+
+class TestProviderErrorIsNotLeaked:
+    """프로바이더 응답 본문(마스킹된 키·계정 주소 등)이 사용자에게 가면 안 된다"""
+
+    @pytest.mark.asyncio
+    async def test_auth_error_becomes_safe_message(self, monkeypatch):
+        service, _ = _service(monkeypatch, [])
+        error = _provider_error(openai.AuthenticationError, AUTH_ERROR_TEXT)
+        service.client = SimpleNamespace(
+            chat=SimpleNamespace(completions=RaisingCompletions(error))
+        )
+        with pytest.raises(AIServiceError) as exc:
+            await service.parse_strategy("RSI 30 밑이면 매수")
+        assert exc.value.status_code == 503
+        assert "your_ope" not in exc.value.message
+        assert "platform.openai.com" not in exc.value.message
+
+    @pytest.mark.asyncio
+    async def test_missing_key_is_server_side_error(self, monkeypatch):
+        monkeypatch.setattr(ai_mod, "OPENAI_API_KEY", "")
+        service = AIStrategyService.__new__(AIStrategyService)
+        service._cache = {}
+        with pytest.raises(AIServiceError) as exc:
+            await service.parse_strategy("RSI 30 밑이면 매수")
+        # 사용자가 고칠 수 없는 문제라 400 이 아니다
+        assert exc.value.status_code == 503
+
+    def test_translate_maps_status_codes(self):
+        cases = [
+            (openai.AuthenticationError, 503),
+            (openai.PermissionDeniedError, 503),
+            (openai.RateLimitError, 429),
+            (openai.APITimeoutError, 504),
+            (openai.APIConnectionError, 503),
+            (openai.BadRequestError, 502),  # 그 밖의 APIStatusError
+        ]
+        for cls, status in cases:
+            error = _provider_error(cls, "프로바이더 원문")
+            translated = translate_provider_error(error, "AI 전략 변환")
+            assert translated.status_code == status, cls.__name__
+            assert "프로바이더 원문" not in translated.message
+
+        unknown = translate_provider_error(RuntimeError("boom"), "AI 전략 변환")
+        assert unknown.status_code == 500
+        assert "boom" not in unknown.message

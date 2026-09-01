@@ -229,6 +229,11 @@ AI 변환(`ai_strategy`)도 구조화 템플릿으로 표현할 수 없는 전�
 만듭니다. 프롬프트에 식 문법을 안내하고, 응답의 식을 `validate()`로 전부 검증한 뒤
 틀린 식은 오류 문구와 함께 한 번 다시 시킵니다. 재시도까지 실패하면 400.
 
+OpenAI 호출이 실패하면 예외를 그대로 문자열로 만들어 내보내지 않습니다. 프로바이더
+응답 본문에는 마스킹된 키와 계정 주소가 들어 있어서, `ai_errors.translate_provider_error()`
+가 예외 종류만 보고 상태 코드와 우리 문구를 담은 `AIServiceError`로 바꿉니다. 원문은
+`logger.exception`으로 서버 로그에만 남습니다. `ai_report`도 같은 경로를 씁니다.
+
 요청의 지표 파라미터는 `SentenceCondition.params`(교차 상대는 `targetParams`)로 받고, 옛
 필드 `indicatorPeriod`/`targetPeriod`는 `params`가 없을 때 첫 파라미터로 해석합니다.
 
